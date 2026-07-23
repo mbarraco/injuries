@@ -1,0 +1,826 @@
+{
+  "generated_at": "2026-07-23T22:43:35+00:00",
+  "windows": [
+    [
+      "2015-03-01",
+      "2015-04-01"
+    ],
+    [
+      "2018-03-01",
+      "2018-04-01"
+    ],
+    [
+      "2020-02-01",
+      "2020-03-01"
+    ],
+    [
+      "2022-03-01",
+      "2022-04-01"
+    ],
+    [
+      "2024-03-01",
+      "2024-04-01"
+    ],
+    [
+      "2026-03-01",
+      "2026-04-01"
+    ]
+  ],
+  "results": [
+    {
+      "country": "ALBANIA",
+      "league": "Superliga",
+      "id": 172,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 51
+      },
+      "total": 51,
+      "years_with_data": 1
+    },
+    {
+      "country": "ANDORRA",
+      "league": "Primera Division",
+      "id": 893,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 0
+      },
+      "total": 0,
+      "years_with_data": 0
+    },
+    {
+      "country": "ARMENIA",
+      "league": "Premier League",
+      "id": 175,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 5
+      },
+      "total": 5,
+      "years_with_data": 1
+    },
+    {
+      "country": "AUSTRIA",
+      "league": "Tipico Bundesliga",
+      "id": 181,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 188
+      },
+      "total": 188,
+      "years_with_data": 1
+    },
+    {
+      "country": "AZERBAIJAN",
+      "league": "Premier League",
+      "id": 190,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 14
+      },
+      "total": 14,
+      "years_with_data": 1
+    },
+    {
+      "country": "BELARUS",
+      "league": "Vysshaya Liga",
+      "id": 199,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 15,
+        "2026": 13
+      },
+      "total": 28,
+      "years_with_data": 2
+    },
+    {
+      "country": "BELGIUM",
+      "league": "Pro League",
+      "id": 208,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 50
+      },
+      "total": 50,
+      "years_with_data": 1
+    },
+    {
+      "country": "BOSNIA AND HERZEGOVINA",
+      "league": "Premier Liga",
+      "id": 220,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 64
+      },
+      "total": 64,
+      "years_with_data": 1
+    },
+    {
+      "country": "BULGARIA",
+      "league": "Parva Liga",
+      "id": 229,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 79
+      },
+      "total": 79,
+      "years_with_data": 1
+    },
+    {
+      "country": "CROATIA",
+      "league": "1. HNL",
+      "id": 244,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 26
+      },
+      "total": 26,
+      "years_with_data": 1
+    },
+    {
+      "country": "CYPRUS",
+      "league": "1. Division",
+      "id": 253,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 124
+      },
+      "total": 124,
+      "years_with_data": 1
+    },
+    {
+      "country": "CZECH REPUBLIC",
+      "league": "Fortuna Liga",
+      "id": 262,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 19
+      },
+      "total": 19,
+      "years_with_data": 1
+    },
+    {
+      "country": "DENMARK",
+      "league": "Superliga",
+      "id": 271,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 60
+      },
+      "total": 60,
+      "years_with_data": 1
+    },
+    {
+      "country": "ENGLAND",
+      "league": "Premier League",
+      "id": 8,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 26
+      },
+      "total": 26,
+      "years_with_data": 1
+    },
+    {
+      "country": "ESTONIA",
+      "league": "Meistriliiga",
+      "id": 286,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 18,
+        "2026": 0
+      },
+      "total": 18,
+      "years_with_data": 1
+    },
+    {
+      "country": "FAROE ISLANDS",
+      "league": "1. Deild",
+      "id": 280,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 0
+      },
+      "total": 0,
+      "years_with_data": 0
+    },
+    {
+      "country": "FINLAND",
+      "league": "Veikkausliiga",
+      "id": 292,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 0
+      },
+      "total": 0,
+      "years_with_data": 0
+    },
+    {
+      "country": "FRANCE",
+      "league": "Ligue 1",
+      "id": 301,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 41
+      },
+      "total": 41,
+      "years_with_data": 1
+    },
+    {
+      "country": "GEORGIA",
+      "league": "Erovnuli Liga 2",
+      "id": 316,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 0
+      },
+      "total": 0,
+      "years_with_data": 0
+    },
+    {
+      "country": "GERMANY",
+      "league": "Bundesliga",
+      "id": 82,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 95
+      },
+      "total": 95,
+      "years_with_data": 1
+    },
+    {
+      "country": "GIBRALTAR",
+      "league": "Gibraltar Cup",
+      "id": 1526,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 0
+      },
+      "total": 0,
+      "years_with_data": 0
+    },
+    {
+      "country": "GREECE",
+      "league": "Super League",
+      "id": 325,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 138
+      },
+      "total": 138,
+      "years_with_data": 1
+    },
+    {
+      "country": "HUNGARY",
+      "league": "OTP Bank Liga",
+      "id": 334,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 22
+      },
+      "total": 22,
+      "years_with_data": 1
+    },
+    {
+      "country": "ICELAND",
+      "league": "Pepsideild",
+      "id": 345,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 0
+      },
+      "total": 0,
+      "years_with_data": 0
+    },
+    {
+      "country": "ISRAEL",
+      "league": "Ligat ha'Al",
+      "id": 372,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 0
+      },
+      "total": 0,
+      "years_with_data": 0
+    },
+    {
+      "country": "ITALY",
+      "league": "Serie A",
+      "id": 384,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 14
+      },
+      "total": 14,
+      "years_with_data": 1
+    },
+    {
+      "country": "KAZAKHSTAN",
+      "league": "Premier League",
+      "id": 393,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 4,
+        "2026": 10
+      },
+      "total": 14,
+      "years_with_data": 2
+    },
+    {
+      "country": "KOSOVO",
+      "league": "Superliga",
+      "id": 1488,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 46
+      },
+      "total": 46,
+      "years_with_data": 1
+    },
+    {
+      "country": "LATVIA",
+      "league": "Virsliga",
+      "id": 399,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 16
+      },
+      "total": 16,
+      "years_with_data": 1
+    },
+    {
+      "country": "LITHUANIA",
+      "league": "A Lyga",
+      "id": 405,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 9,
+        "2026": 15
+      },
+      "total": 24,
+      "years_with_data": 2
+    },
+    {
+      "country": "LUXEMBOURG",
+      "league": "National Division",
+      "id": 1504,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 33
+      },
+      "total": 33,
+      "years_with_data": 1
+    },
+    {
+      "country": "MALTA",
+      "league": "Premier League",
+      "id": 420,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 1
+      },
+      "total": 1,
+      "years_with_data": 1
+    },
+    {
+      "country": "MOLDOVA",
+      "league": "National Division",
+      "id": 426,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 12
+      },
+      "total": 12,
+      "years_with_data": 1
+    },
+    {
+      "country": "MONTENEGRO",
+      "league": "First League",
+      "id": 432,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 15
+      },
+      "total": 15,
+      "years_with_data": 1
+    },
+    {
+      "country": "NETHERLANDS",
+      "league": "Eredivisie",
+      "id": 72,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 80
+      },
+      "total": 80,
+      "years_with_data": 1
+    },
+    {
+      "country": "NORTHERN IRELAND",
+      "league": "Premiership",
+      "id": 438,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 22
+      },
+      "total": 22,
+      "years_with_data": 1
+    },
+    {
+      "country": "NORWAY",
+      "league": "Eliteserien",
+      "id": 444,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 26,
+        "2026": 44
+      },
+      "total": 70,
+      "years_with_data": 2
+    },
+    {
+      "country": "POLAND",
+      "league": "Ekstraklasa",
+      "id": 453,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 64
+      },
+      "total": 64,
+      "years_with_data": 1
+    },
+    {
+      "country": "PORTUGAL",
+      "league": "Primeira Liga",
+      "id": 462,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 55
+      },
+      "total": 55,
+      "years_with_data": 1
+    },
+    {
+      "country": "REPUBLIC OF IRELAND",
+      "league": "Premier Division",
+      "id": 360,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 53,
+        "2026": 72
+      },
+      "total": 125,
+      "years_with_data": 2
+    },
+    {
+      "country": "ROMANIA",
+      "league": "Liga 1",
+      "id": 474,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 134
+      },
+      "total": 134,
+      "years_with_data": 1
+    },
+    {
+      "country": "RUSSIA",
+      "league": "Premier League",
+      "id": 486,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 118
+      },
+      "total": 118,
+      "years_with_data": 1
+    },
+    {
+      "country": "SAN MARINO",
+      "league": "Campionato",
+      "id": 1346,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 0
+      },
+      "total": 0,
+      "years_with_data": 0
+    },
+    {
+      "country": "SCOTLAND",
+      "league": "Premiership",
+      "id": 501,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 6
+      },
+      "total": 6,
+      "years_with_data": 1
+    },
+    {
+      "country": "SERBIA",
+      "league": "Super Liga",
+      "id": 531,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 47
+      },
+      "total": 47,
+      "years_with_data": 1
+    },
+    {
+      "country": "SLOVAKIA",
+      "league": "Fortuna Liga",
+      "id": 540,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 19
+      },
+      "total": 19,
+      "years_with_data": 1
+    },
+    {
+      "country": "SLOVENIA",
+      "league": "1. SNL",
+      "id": 555,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 17
+      },
+      "total": 17,
+      "years_with_data": 1
+    },
+    {
+      "country": "SPAIN",
+      "league": "La Liga",
+      "id": 564,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 10
+      },
+      "total": 10,
+      "years_with_data": 1
+    },
+    {
+      "country": "SWEDEN",
+      "league": "Allsvenskan",
+      "id": 573,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 7,
+        "2026": 0
+      },
+      "total": 7,
+      "years_with_data": 1
+    },
+    {
+      "country": "SWITZERLAND",
+      "league": "Super League",
+      "id": 591,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 146
+      },
+      "total": 146,
+      "years_with_data": 1
+    },
+    {
+      "country": "TURKEY",
+      "league": "Super Lig",
+      "id": 600,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 85
+      },
+      "total": 85,
+      "years_with_data": 1
+    },
+    {
+      "country": "UKRAINE",
+      "league": "Premier League",
+      "id": 609,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 54
+      },
+      "total": 54,
+      "years_with_data": 1
+    },
+    {
+      "country": "WALES",
+      "league": "Premier League",
+      "id": 624,
+      "windows": {
+        "2015": 0,
+        "2018": 0,
+        "2020": 0,
+        "2022": 0,
+        "2024": 0,
+        "2026": 15
+      },
+      "total": 15,
+      "years_with_data": 1
+    }
+  ]
+}
