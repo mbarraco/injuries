@@ -13,3 +13,5 @@ venv/
 
 # App POC
 app/app.db
+
+data/
