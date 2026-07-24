@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Coverage & Quality{% endblock %}
+{% block heading %}Coverage &amp; Data Quality{% endblock %}
+{% block subtitle %}What this dataset contains, how it was verified, and where its limits are.{% endblock %}
+{% block content %}
+{% set q = {} %}{% for metric in quality %}{% set _ = q.update({metric.metric: metric}) %}{% endfor %}
+<section><h2>Dataset at a glance</h2><div class="stat-row">
+  {% for value, label in [(overview.injuries, 'Injuries'), (overview.leagues, 'Leagues'), (overview.players, 'Players'), (overview.teams, 'Teams'), (overview.ongoing, 'Ongoing')] %}
+  <div class="stat"><div class="value">{{ '{:,}'.format(value) }}</div><div class="label">{{ label }}</div></div>{% endfor %}
+  <div class="stat"><div class="value">{{ overview.earliest[:4] }}–{{ overview.latest[:4] }}</div><div class="label">Date range</div></div>
+</div></section>
+<section><h2>Deduplication — why raw API counts mislead</h2><div class="card"><p class="intro">The vendor returns one row per <em>match missed</em>, not per injury. Counting raw rows overstates the dataset by <strong>{{ q.dedup_ratio.value }}×</strong>.</p><div class="funnel">
+  <div class="funnel-step"><div class="n">{{ '{:,}'.format(q.raw_pivot_rows.value|int) }}</div><div class="t">Raw rows returned</div></div><span>→</span>
+  <div class="funnel-step"><div class="n">{{ '{:,}'.format(q.distinct_absences.value|int) }}</div><div class="t">Distinct absences</div></div><span>→</span>
+  <div class="funnel-step final"><div class="n">{{ '{:,}'.format(q.injuries.value|int) }}</div><div class="t">Injuries</div></div>
+</div></div></section>
+<section><h2>Measured quality</h2><div class="table-wrap"><table><thead><tr><th>Metric</th><th class="num">Value</th><th>Detail</th></tr></thead><tbody>{% for metric in quality %}<tr><td>{{ metric.metric }}</td><td class="num">{{ metric.value }}</td><td>{{ metric.detail }}</td></tr>{% endfor %}</tbody></table></div></section>
+<section><h2>Coverage by league</h2><div class="table-wrap"><table><thead><tr><th>Country</th><th>League</th><th class="num">Year 1</th><th class="num">Year 2</th><th class="num">Year 3</th><th>Tier</th></tr></thead><tbody>{% for row in coverage %}<tr><td>{{ row.country }}</td><td>{{ row.league }}</td><td class="num">{{ row.yr1 or 0 }}</td><td class="num">{{ row.yr2 or 0 }}</td><td class="num">{{ row.yr3 or 0 }}</td><td><span class="pill {{ row.tier }}">{{ row.tier }}</span></td></tr>{% endfor %}</tbody></table></div></section>
+<section><h2>Known gaps</h2><div class="card gaps"><ul><li><strong>Suspensions excluded.</strong> The vendor combines injuries and suspension records in one feed; this POC keeps only injuries.</li><li><strong>Vendor inconsistency.</strong> The same concept arrives as <code>suspended</code> and <code>suspension</code>; both are measured and excluded during ingest.</li><li><strong>Missing dimensions are retained.</strong> Unresolvable teams and player IDs do not cause injury rows to be discarded.</li><li><strong>Season attribution is derived.</strong> The vendor omits it from sideline records, so it comes from the parent fixture.</li><li><strong>History depth is provisional.</strong> Sparse older coverage may reflect trial-account restrictions; it is not presented as a settled limitation.</li></ul></div></section>
+{% endblock %}

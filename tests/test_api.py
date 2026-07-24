@@ -21,3 +21,15 @@ def test_api_injuries_filters_ongoing(client):
     response = client.get("/api/injuries", params={"ongoing_only": True})
     assert response.status_code == 200
     assert response.json()["total"] == 1
+
+
+@pytest.mark.parametrize("path, content", [
+    ("/", "Coverage &amp; Data Quality"),
+    ("/analytics", "Injuries by position"),
+    ("/injuries", "Injury Records"),
+    ("/player/5001", "A. Player"),
+])
+def test_pages_render(client, path, content):
+    response = client.get(path)
+    assert response.status_code == 200
+    assert content in response.text
