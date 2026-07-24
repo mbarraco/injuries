@@ -585,21 +585,37 @@ def sm_probe(session, token, conn, run_id):
             save_coverage(conn, run_id, "sportmonks", label, None, col, None, "unresolved")
             continue
         d1, d2 = SM_WINDOW
-        r = sm_get(session, token, f"/fixtures/between/{d1}/{d2}",
-                   {"filters": f"fixtureLeagues:{lid}", "include": "sidelined"})
-        if r.status_code in (401, 403):
+        # Paginate: a busy league/window can exceed the default page size and
+        # silently truncate otherwise (found and fixed the same bug in
+        # sm_sweep55.py — a single-page call risks under-counting exactly the
+        # leagues with the most fixtures, i.e. the ones that matter most).
+        fixtures, page, last_status, last_text = [], 1, 200, ""
+        while page <= 5:
+            r = sm_get(session, token, f"/fixtures/between/{d1}/{d2}",
+                       {"filters": f"fixtureLeagues:{lid}", "include": "sidelined",
+                        "per_page": "100", "page": str(page)})
+            last_status, last_text = r.status_code, r.text
+            if r.status_code != 200:
+                break
+            body = r.json()
+            batch = body.get("data", [])
+            fixtures.extend(batch)
+            pag = body.get("pagination") or {}
+            if not batch or not pag.get("has_more"):
+                break
+            page += 1
+        if last_status in (401, 403):
             rows.append((label, {col: (None, "not_in_plan")}))
             save_coverage(conn, run_id, "sportmonks", label, lid, col, None,
-                          "not_in_plan", f"HTTP {r.status_code}")
-            print(f"  {label:26} plan✗ (HTTP {r.status_code})")
+                          "not_in_plan", f"HTTP {last_status}")
+            print(f"  {label:26} plan✗ (HTTP {last_status})")
             continue
-        if r.status_code != 200:
+        if last_status != 200:
             rows.append((label, {col: (None, "error")}))
             save_coverage(conn, run_id, "sportmonks", label, lid, col, None,
-                          "error", f"HTTP {r.status_code}: {r.text[:120]}")
-            print(f"  {label:26} ERR (HTTP {r.status_code})")
+                          "error", f"HTTP {last_status}: {last_text[:120]}")
+            print(f"  {label:26} ERR (HTTP {last_status})")
             continue
-        fixtures = r.json().get("data", [])
         sidelined = sum(len(f.get("sidelined", []) or []) for f in fixtures)
         status = "ok" if sidelined else "empty"
         rows.append((label, {col: (sidelined, status)}))
