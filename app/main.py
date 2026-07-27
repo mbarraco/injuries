@@ -7,7 +7,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app import db, queries
+from app import auth, db, queries
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI(title="Injury Data POC")
@@ -17,7 +17,7 @@ templates = Jinja2Templates(directory=os.path.join(HERE, "templates"))
 security = HTTPBasic()
 
 async def verify_auth(credentials: HTTPBasicCredentials = Depends(security)):
-    if credentials.username != "fernando" or credentials.password != "1nd3p3nd13nt3":
+    if not auth.verify(credentials.username, credentials.password):
         raise HTTPException(status_code=401, detail="Invalid credentials", headers={"WWW-Authenticate": "Basic"})
     return credentials.username
 

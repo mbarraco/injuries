@@ -54,6 +54,21 @@ def test_stores_non_injury_absence_with_null_start_date(tmp_path, reference_db):
     assert connection.execute("SELECT start_date, is_ongoing FROM absence WHERE id = 999").fetchone() == (None, 1)
 
 
+def test_creates_indexes_for_entity_pages(tmp_path, raw_cache_dir, reference_db):
+    """Team, season and transfer pages filter on columns that were unindexed.
+
+    Each of these backs a planned detail page; without the index the page is a
+    full table scan (44k player_season rows, 77k transfers).
+    """
+    output = tmp_path / "app.db"
+    etl.build(raw_cache_dir, reference_db, output)
+    connection = sqlite3.connect(output)
+    names = {row[0] for row in connection.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'index'")}
+    assert {"idx_absence_team", "idx_player_season_season", "idx_player_season_team",
+            "idx_transfer_from", "idx_transfer_to"} <= names
+
+
 def test_records_sidelined_coverage_per_year(tmp_path, raw_cache_dir, reference_db):
     """Coverage density is measured per year, not just totalled.
 

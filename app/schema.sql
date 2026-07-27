@@ -65,6 +65,10 @@ CREATE TABLE player_season (
 );
 
 CREATE INDEX idx_player_season_player ON player_season(player_id);
+-- Season and team pages filter on these; without them each one table-scans
+-- 44k rows.
+CREATE INDEX idx_player_season_season ON player_season(season_id);
+CREATE INDEX idx_player_season_team   ON player_season(team_id);
 
 -- Career transfers, extracted from the enriched player cache. from_/to_team
 -- are deliberately NOT foreign keys: a move often involves a club outside our
@@ -83,6 +87,9 @@ CREATE TABLE transfer (
 );
 
 CREATE INDEX idx_transfer_player ON transfer(player_id);
+-- Team pages list transfers in and out, neither of which goes via player_id.
+CREATE INDEX idx_transfer_from   ON transfer(from_team_id);
+CREATE INDEX idx_transfer_to     ON transfer(to_team_id);
 
 -- Every sidelined absence, regardless of category. Nothing is dropped at
 -- ingest time: injuries, suspensions and uncategorised rows all land here
@@ -109,6 +116,7 @@ CREATE TABLE absence (
 );
 
 CREATE INDEX idx_absence_league ON absence(league_id);
+CREATE INDEX idx_absence_team ON absence(team_id);
 CREATE INDEX idx_absence_season ON absence(season_id);
 CREATE INDEX idx_absence_player ON absence(player_id);
 CREATE INDEX idx_absence_type ON absence(type_id);

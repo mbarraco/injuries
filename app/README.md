@@ -6,9 +6,23 @@ FastAPI POC showcasing the Sportmonks injury dataset: coverage, quality, and ana
 
 ```bash
 cd /Users/mbarraco/code/injuries
-uv venv --python 3.14
-uv pip install -r app/requirements.txt
-uv run --python 3.14 -m app.etl
+uv sync
+uv run python -m app.etl
+```
+
+Dependencies live in `pyproject.toml`; `uv sync` installs them along with the
+dev group (pytest, httpx).
+
+## Credentials
+
+The app reads HTTP Basic credentials from the environment, falling back to the
+gitignored `.env`. Both must be set or the app refuses to serve requests —
+there is deliberately no default, since an unset password that authenticates
+everyone is worse than an outage:
+
+```
+INJURY_APP_USER=<your-user>
+INJURY_APP_PASSWORD=<your-password>
 ```
 
 If your shell is already in `app/`, use `uv run --python 3.14 -m etl`

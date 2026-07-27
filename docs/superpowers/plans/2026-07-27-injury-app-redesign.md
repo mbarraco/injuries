@@ -12,6 +12,37 @@
 
 ---
 
+## Slicing — stop safely after any slice
+
+Ordered by value per token. **Each slice ends with a working, committed app**, so
+running out of budget mid-plan leaves working software, never a half-migration.
+Do not start a slice you can't finish; the risky ones are called out.
+
+| Slice | Delivers | Cost | Stop here? |
+|---|---|---|---|
+| **A. Safety & speed** | git-lfs, env credentials, indexes | Small | Yes — app unchanged, but secure and faster |
+| **B. Linking** | `entity_link` macro + league/team/type pages, existing tables link out | Large | Yes — this is the core of the request |
+| **C. Depth** | season pages, player minutes + transfers, category filter | Medium | Yes |
+| **D. Visual** | design tokens, dark mode, responsive, readable templates | Large | Yes — purely cosmetic, safe to defer |
+| **E. Search** | vendored htmx, global prefix search | Medium | Yes |
+| **F. Analysis** | rate metric, dashboard, coverage rewrite, analytics linking | Large | Yes |
+
+**Tasks deliberately dropped from the critical path:**
+
+- **Task 5 (queries package split)** — pure file shuffling: expensive in output
+  tokens, zero user-visible value, and leaves broken imports if interrupted. Let
+  `queries.py` grow; revisit only when it actually hurts to work in.
+- **Task 3 (session login)** — nice UX, but HTTP Basic already works. The
+  *security* fix (env credentials, Task 2) is cheap and stays in Slice A; the
+  *convenience* fix can wait.
+
+**Within a slice, order matters:** in B and C, create each detail page **before**
+adding links pointing at it, so the app never has links to routes that 404.
+
+**Per-slice ritual:** start a fresh session, point it at this plan and the slice,
+finish the slice, run `uv run pytest tests/ -q`, commit. Don't carry one slice's
+context into the next — the plan file is the context.
+
 ## File Structure
 
 **Created:**

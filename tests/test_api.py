@@ -3,16 +3,19 @@ import base64
 import pytest
 from fastapi.testclient import TestClient
 
-from app import etl
+from app import auth, etl
 
-# Every route is behind HTTP Basic auth (app/main.py verify_auth). Send the
-# same credentials on every test request so we exercise the routes, not the
-# 401 path.
-_AUTH_HEADER = "Basic " + base64.b64encode(b"fernando:1nd3p3nd13nt3").decode()
+# Every route is behind HTTP Basic auth (app/main.py verify_auth). Credentials
+# come from the environment, so the tests set their own rather than depending
+# on whatever the developer has in .env.
+_USER, _PASSWORD = "tester", "testpass"
+_AUTH_HEADER = "Basic " + base64.b64encode(f"{_USER}:{_PASSWORD}".encode()).decode()
 
 
 @pytest.fixture
 def client(tmp_path, raw_cache_dir, reference_db, monkeypatch):
+    monkeypatch.setenv(auth.USER_VAR, _USER)
+    monkeypatch.setenv(auth.PASSWORD_VAR, _PASSWORD)
     output = tmp_path / "app.db"
     etl.build(raw_cache_dir, reference_db, output)
     monkeypatch.setattr("app.db.DB_PATH", str(output))
