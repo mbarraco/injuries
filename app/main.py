@@ -114,3 +114,18 @@ def page_team(request: Request, team_id: int, _: str = Depends(verify_auth)):
     if detail is None:
         raise HTTPException(status_code=404, detail="Team not found")
     return templates.TemplateResponse(request, "team.html", {"active": "teams", **detail})
+
+
+@app.get("/types", response_class=HTMLResponse)
+def page_types(request: Request, _: str = Depends(verify_auth)):
+    with _connection() as connection:
+        return templates.TemplateResponse(request, "types.html", {"active": "types", "types": queries.types_index(connection)})
+
+
+@app.get("/type/{type_id}", response_class=HTMLResponse)
+def page_type(request: Request, type_id: int, _: str = Depends(verify_auth)):
+    with _connection() as connection:
+        detail = queries.type_detail(connection, type_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Injury type not found")
+    return templates.TemplateResponse(request, "type.html", {"active": "types", **detail})

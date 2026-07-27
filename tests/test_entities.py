@@ -28,3 +28,19 @@ def test_teams_index_lists_all_teams(client):
 
 def test_unknown_team_is_404(client):
     assert client.get("/team/999999").status_code == 404
+
+
+def test_type_page_shows_name_and_links_players(client):
+    response = client.get("/type/500")
+    assert response.status_code == 200
+    assert "Knock" in response.text
+    assert 'href="/player/' in response.text
+
+
+def test_types_index_lists_all_types(client):
+    response = client.get("/types")
+    assert 'href="/type/500"' in response.text
+
+
+def test_unknown_type_is_404(client):
+    assert client.get("/type/999999").status_code == 404
