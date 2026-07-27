@@ -100,8 +100,10 @@ _INJURY_SELECT = """
     SELECT injury.id, injury.player_id, injury.start_date, injury.end_date,
            injury.duration_days, injury.games_missed, injury.is_ongoing,
            injury.age_at_start, injury.fixture_appearances,
-           player.name AS player, player.position, team.name AS team,
-           league.country, league.name AS league, injury_type.name AS type
+           player.name AS player, player.position,
+           team.id AS team_id, team.name AS team,
+           league.id AS league_id, league.country, league.name AS league,
+           injury_type.id AS type_id, injury_type.name AS type
     FROM injury
     LEFT JOIN player ON player.id = injury.player_id
     LEFT JOIN team ON team.id = injury.team_id

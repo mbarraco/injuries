@@ -99,3 +99,18 @@ def page_league(request: Request, league_id: int, _: str = Depends(verify_auth))
     if detail is None:
         raise HTTPException(status_code=404, detail="League not found")
     return templates.TemplateResponse(request, "league.html", {"active": "leagues", **detail})
+
+
+@app.get("/teams", response_class=HTMLResponse)
+def page_teams(request: Request, _: str = Depends(verify_auth)):
+    with _connection() as connection:
+        return templates.TemplateResponse(request, "teams.html", {"active": "teams", "teams": queries.teams_index(connection)})
+
+
+@app.get("/team/{team_id}", response_class=HTMLResponse)
+def page_team(request: Request, team_id: int, _: str = Depends(verify_auth)):
+    with _connection() as connection:
+        detail = queries.team_detail(connection, team_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Team not found")
+    return templates.TemplateResponse(request, "team.html", {"active": "teams", **detail})
