@@ -89,6 +89,30 @@ Each detail page carries its own data **and** links to every neighbour:
 Breadcrumbs on every detail page (`Home › Premier League › Arsenal › Saka`) and
 a persistent global search in the header.
 
+### Dashboard (`/`)
+
+A summary of every view, each panel linking into it. Three bands:
+
+1. **Stat row** — absences, injuries, players, teams, competitions, seasons
+   covered, currently-ongoing. Each tile links to its index page.
+2. **Coverage caveat banner** — one line stating that injury coverage ramps over
+   time and cross-year comparison is invalid, linking to `/coverage`. Prominent
+   because it is the dataset's biggest trap, but a banner rather than the page.
+3. **Summary cards**, one per view, each showing its top 5 rows and a "view all"
+   link:
+
+   | Card | Shows |
+   |---|---|
+   | Recent absences | Latest by start date, plus an ongoing count |
+   | Players | Most absences, with minutes alongside |
+   | Teams | Highest injury burden |
+   | Leagues | Most absences, with coverage depth noted |
+   | Injury types | Most common, with average days out |
+   | Seasons | Current season summary, absences per season |
+
+Every number on this page is a link — the dashboard is the primary entry into
+the navigation graph, not a static readout.
+
 ### Two renames
 
 - **`/injuries` → `/absences`.** The table is `absence` and now surfaces
