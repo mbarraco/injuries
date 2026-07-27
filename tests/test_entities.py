@@ -84,3 +84,33 @@ def test_type_page_reports_total_players_affected(connection, monkeypatch):
 
     assert len(detail["players"]) == 1
     assert detail["players_total"] == 2        # 5001 and 5003 both had type 500
+
+
+def test_season_page_links_league(client):
+    response = client.get("/season/77")
+    assert response.status_code == 200
+    assert "Test League" in response.text
+    assert 'href="/league/10"' in response.text
+
+
+def test_seasons_index_lists_all_seasons(client):
+    response = client.get("/seasons")
+    assert 'href="/season/77"' in response.text
+
+
+def test_unknown_season_is_404(client):
+    assert client.get("/season/999999").status_code == 404
+
+
+def test_team_squad_uses_current_season(connection):
+    """The squad picks players via season.is_current, not MAX(season_id).
+
+    MAX(season_id) silently assumes ids are chronological; is_current is the
+    column the schema already populates for exactly this purpose.
+    """
+    from app import queries
+
+    detail = queries.team_detail(connection, 100)
+    squad_ids = {row["id"] for row in detail["squad"]}
+    assert 5001 in squad_ids   # season 77, is_current
+    assert 5003 not in squad_ids  # season 78, higher id but not current

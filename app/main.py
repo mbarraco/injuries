@@ -116,6 +116,21 @@ def page_team(request: Request, team_id: int, _: str = Depends(verify_auth)):
     return templates.TemplateResponse(request, "team.html", {"active": "teams", **detail})
 
 
+@app.get("/seasons", response_class=HTMLResponse)
+def page_seasons(request: Request, _: str = Depends(verify_auth)):
+    with _connection() as connection:
+        return templates.TemplateResponse(request, "seasons.html", {"active": "seasons", "seasons": queries.seasons_index(connection)})
+
+
+@app.get("/season/{season_id}", response_class=HTMLResponse)
+def page_season(request: Request, season_id: int, _: str = Depends(verify_auth)):
+    with _connection() as connection:
+        detail = queries.season_detail(connection, season_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Season not found")
+    return templates.TemplateResponse(request, "season.html", {"active": "seasons", **detail})
+
+
 @app.get("/types", response_class=HTMLResponse)
 def page_types(request: Request, _: str = Depends(verify_auth)):
     with _connection() as connection:

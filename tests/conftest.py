@@ -55,6 +55,11 @@ def reference_db(tmp_path):
     connection.execute("INSERT INTO sportmonks_team VALUES ('100', 'FC Test', 'Testland', 1900, 'FCT')")
     connection.execute("INSERT INTO sportmonks_type VALUES ('500', 'Knock')")
     connection.execute("INSERT INTO sportmonks_season VALUES ('77', '10', 'Testland', 'Test League', '2024/2025', 1, '{}')")
+    # A second, non-current season with a HIGHER id than the current one — this
+    # is what makes MAX(season_id) the wrong squad-selection rule and
+    # season.is_current the right one; the id order deliberately doesn't match
+    # recency.
+    connection.execute("INSERT INTO sportmonks_season VALUES ('78', '10', 'Testland', 'Test League', '2023/2024', 0, '{}')")
     connection.execute("INSERT INTO sportmonks_coverage VALUES (16, 'Testland', 'Test League', '10', '2024-08..2025-07', 500, 'moderate')")
     connection.commit()
     connection.close()
@@ -62,23 +67,61 @@ def reference_db(tmp_path):
 
 
 @pytest.fixture
-def connection(tmp_path, raw_cache_dir, reference_db):
+def players_dir(tmp_path):
+    """Enriched player cache for player 5001: season minutes + one transfer.
+
+    Backs the entity-page tests that need player_season/transfer rows (squad,
+    season pages, player minutes/transfer history) — the base raw_cache_dir /
+    reference_db fixtures don't populate either table.
+    """
+    directory = tmp_path / "players"
+    directory.mkdir()
+    (directory / "5001.json").write_text(json.dumps({
+        "id": 5001,
+        "statistics": [{
+            "player_id": 5001, "season_id": 77, "team_id": 100,
+            "details": [
+                {"type_id": 119, "value": {"total": 944}},
+                {"type_id": 321, "value": {"total": 17}},
+                {"type_id": 322, "value": {"total": 11}},
+            ],
+        }],
+        "transfers": [
+            {"id": 700, "player_id": 5001, "from_team_id": 200, "to_team_id": 100,
+             "date": "2022-07-01", "type_id": 219, "amount": 5000000,
+             "completed": True, "career_ended": False},
+        ],
+    }))
+    # Player 5003 only ever played in the non-current season 78, at the same
+    # team — this is the row that must NOT appear in team 100's current squad.
+    (directory / "5003.json").write_text(json.dumps({
+        "id": 5003,
+        "statistics": [{
+            "player_id": 5003, "season_id": 78, "team_id": 100,
+            "details": [{"type_id": 119, "value": {"total": 500}}],
+        }],
+    }))
+    return directory
+
+
+@pytest.fixture
+def connection(tmp_path, raw_cache_dir, reference_db, players_dir):
     """A built app.db, opened read-only, for testing query functions directly.
 
     Cheaper and more precise than going through the HTTP client when the
     assertion is about returned data rather than rendered markup.
     """
     output = tmp_path / "app.db"
-    etl.build(raw_cache_dir, reference_db, output)
+    etl.build(raw_cache_dir, reference_db, output, players_dir=players_dir)
     return db.connect(output)
 
 
 @pytest.fixture
-def client(tmp_path, raw_cache_dir, reference_db, monkeypatch):
+def client(tmp_path, raw_cache_dir, reference_db, players_dir, monkeypatch):
     monkeypatch.setenv(auth.USER_VAR, _USER)
     monkeypatch.setenv(auth.PASSWORD_VAR, _PASSWORD)
     output = tmp_path / "app.db"
-    etl.build(raw_cache_dir, reference_db, output)
+    etl.build(raw_cache_dir, reference_db, output, players_dir=players_dir)
     monkeypatch.setattr("app.db.DB_PATH", str(output))
     from app.main import app
     return TestClient(app, headers={"Authorization": _AUTH_HEADER})

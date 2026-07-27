@@ -235,14 +235,14 @@ def team_detail(connection, team_id):
         """, (team_id,)),
         "squad": rows(connection, """
             SELECT player.id, player.name, player.position,
-                   player_season.season_id, player_season.minutes_played
+                   player_season.season_id, season.name AS season_name,
+                   player_season.minutes_played
             FROM player_season
             JOIN player ON player.id = player_season.player_id
-            WHERE player_season.team_id = ?
-              AND player_season.season_id = (
-                  SELECT MAX(season_id) FROM player_season WHERE team_id = ?)
+            JOIN season ON season.id = player_season.season_id
+            WHERE player_season.team_id = ? AND season.is_current = 1
             ORDER BY player.name
-        """, (team_id, team_id)),
+        """, (team_id,)),
         "absences": rows(connection, f"""
             {_ABSENCE_SELECT}
             WHERE injury.team_id = ? ORDER BY injury.start_date DESC LIMIT ?
@@ -273,6 +273,54 @@ def team_detail(connection, team_id):
         "transfers_out_total": _count(
             connection, "SELECT COUNT(*) FROM transfer WHERE from_team_id = ?", team_id),
         "transfer_limit": TRANSFER_LIMIT,
+    }
+
+
+def seasons_index(connection):
+    return rows(connection, """
+        SELECT season.id, season.name, season.is_current,
+               league.id AS league_id, league.name AS league_name,
+               COUNT(absence.id) AS absences
+        FROM season
+        JOIN league ON league.id = season.league_id
+        LEFT JOIN absence ON absence.season_id = season.id AND absence.category = 'injury'
+        GROUP BY season.id, season.name, season.is_current, league.id, league.name
+        ORDER BY league.name, season.name DESC
+    """)
+
+
+def season_detail(connection, season_id):
+    """A season plus everything reachable from it."""
+    season = connection.execute("""
+        SELECT season.id, season.name, season.is_current,
+               league.id AS league_id, league.name AS league_name
+        FROM season JOIN league ON league.id = season.league_id
+        WHERE season.id = ?
+    """, (season_id,)).fetchone()
+    if season is None:
+        return None
+    return {
+        "season": dict(season),
+        "absences": rows(connection, f"""
+            {_INJURY_SELECT}
+            WHERE injury.season_id = ? ORDER BY injury.start_date DESC LIMIT ?
+        """, (season_id, ABSENCE_LIMIT)),
+        "absences_total": _count(
+            connection, "SELECT COUNT(*) FROM absence WHERE season_id = ? AND category = 'injury'", season_id),
+        "absences_limit": ABSENCE_LIMIT,
+        "players": rows(connection, """
+            SELECT player.id, player.name, player_season.team_id,
+                   team.name AS team_name, player_season.minutes_played
+            FROM player_season
+            JOIN player ON player.id = player_season.player_id
+            LEFT JOIN team ON team.id = player_season.team_id
+            WHERE player_season.season_id = ?
+            ORDER BY player_season.minutes_played DESC
+            LIMIT ?
+        """, (season_id, PLAYER_LIMIT)),
+        "players_total": _count(
+            connection, "SELECT COUNT(*) FROM player_season WHERE season_id = ?", season_id),
+        "player_limit": PLAYER_LIMIT,
     }
 
 

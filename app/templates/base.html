@@ -11,7 +11,8 @@
     <div class="brand"><span class="brand-mark">◆</span><div><strong>Injury Data</strong><small>Sportmonks · UEFA</small></div></div>
     <a href="/" class="{{ 'active' if active == 'coverage' else '' }}">Coverage &amp; Quality</a>
     <a href="/analytics" class="{{ 'active' if active == 'analytics' else '' }}">Analytics</a>
-    <a href="/injuries" class="{{ 'active' if active == 'injuries' else '' }}">Injury Records</a>
+    <a href="/absences" class="{{ 'active' if active == 'absences' else '' }}">Absences</a>
+    <a href="/seasons" class="{{ 'active' if active == 'seasons' else '' }}">Seasons</a>
     <div class="sidebar-foot"><a href="/docs">API docs →</a></div>
   </nav>
   <main><header class="page-head"><h1>{% block heading %}{% endblock %}</h1><p class="subtitle">{% block subtitle %}{% endblock %}</p></header>{% block content %}{% endblock %}</main>
