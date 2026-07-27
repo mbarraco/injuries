@@ -96,7 +96,14 @@ def by_month(connection):
     """)
 
 
-_INJURY_SELECT = """
+# One projection, two sources: the `injury` view (category-filtered) or the
+# full `absence` table. Parameterised via {source} rather than str.replace() on
+# the finished SQL — replace() rewrites *every* match, so any later subquery or
+# CTE containing the same substring would be silently corrupted.
+#
+# The source is always a literal from this module, never user input; it is
+# interpolated because a table name cannot be a bound parameter.
+_ABSENCE_PROJECTION = """
     SELECT injury.id, injury.player_id, injury.start_date, injury.end_date,
            injury.duration_days, injury.games_missed, injury.is_ongoing,
            injury.age_at_start, injury.fixture_appearances,
@@ -104,12 +111,15 @@ _INJURY_SELECT = """
            team.id AS team_id, team.name AS team,
            league.id AS league_id, league.country, league.name AS league,
            injury_type.id AS type_id, injury_type.name AS type
-    FROM injury
+    FROM {source} AS injury
     LEFT JOIN player ON player.id = injury.player_id
     LEFT JOIN team ON team.id = injury.team_id
     LEFT JOIN league ON league.id = injury.league_id
     LEFT JOIN injury_type ON injury_type.id = injury.type_id
 """
+
+_INJURY_SELECT = _ABSENCE_PROJECTION.format(source="injury")
+_ABSENCE_SELECT = _ABSENCE_PROJECTION.format(source="absence")
 
 _SORTABLE = {"start_date": "injury.start_date", "duration": "injury.duration_days",
              "games_missed": "injury.games_missed", "player": "player.name",
@@ -200,6 +210,17 @@ def teams_index(connection):
     """)
 
 
+# Row caps for the detail pages. Named so the templates can report "N of M"
+# rather than presenting a capped list as a complete one.
+ABSENCE_LIMIT = 50
+TRANSFER_LIMIT = 20
+PLAYER_LIMIT = 50
+
+
+def _count(connection, sql, *params):
+    return connection.execute(sql, params).fetchone()[0]
+
+
 def team_detail(connection, team_id):
     """A team plus everything reachable from it."""
     team = connection.execute("SELECT * FROM team WHERE id = ?", (team_id,)).fetchone()
@@ -223,25 +244,35 @@ def team_detail(connection, team_id):
             ORDER BY player.name
         """, (team_id, team_id)),
         "absences": rows(connection, f"""
-            {_INJURY_SELECT.replace("FROM injury", "FROM absence AS injury")}
-            WHERE injury.team_id = ? ORDER BY injury.start_date DESC LIMIT 50
-        """, (team_id,)),
+            {_ABSENCE_SELECT}
+            WHERE injury.team_id = ? ORDER BY injury.start_date DESC LIMIT ?
+        """, (team_id, ABSENCE_LIMIT)),
+        # Totals accompany every capped list: a truncated table is fine, but a
+        # heading that reports the page size as if it were the total is not.
+        # Team 88 holds 290 absences and would otherwise display "(50)".
+        "absences_total": _count(connection, "SELECT COUNT(*) FROM absence WHERE team_id = ?", team_id),
+        "absences_limit": ABSENCE_LIMIT,
         "transfers_in": rows(connection, """
             SELECT transfer.id, transfer.date, player.id AS player_id, player.name AS player,
                    transfer.from_team_id, from_team.name AS from_team
             FROM transfer
             JOIN player ON player.id = transfer.player_id
             LEFT JOIN team AS from_team ON from_team.id = transfer.from_team_id
-            WHERE transfer.to_team_id = ? ORDER BY transfer.date DESC LIMIT 20
-        """, (team_id,)),
+            WHERE transfer.to_team_id = ? ORDER BY transfer.date DESC LIMIT ?
+        """, (team_id, TRANSFER_LIMIT)),
+        "transfers_in_total": _count(
+            connection, "SELECT COUNT(*) FROM transfer WHERE to_team_id = ?", team_id),
         "transfers_out": rows(connection, """
             SELECT transfer.id, transfer.date, player.id AS player_id, player.name AS player,
                    transfer.to_team_id, to_team.name AS to_team
             FROM transfer
             JOIN player ON player.id = transfer.player_id
             LEFT JOIN team AS to_team ON to_team.id = transfer.to_team_id
-            WHERE transfer.from_team_id = ? ORDER BY transfer.date DESC LIMIT 20
-        """, (team_id,)),
+            WHERE transfer.from_team_id = ? ORDER BY transfer.date DESC LIMIT ?
+        """, (team_id, TRANSFER_LIMIT)),
+        "transfers_out_total": _count(
+            connection, "SELECT COUNT(*) FROM transfer WHERE from_team_id = ?", team_id),
+        "transfer_limit": TRANSFER_LIMIT,
     }
 
 
@@ -268,8 +299,13 @@ def type_detail(connection, type_id):
                    ROUND(AVG(absence.duration_days), 1) AS avg_days
             FROM absence JOIN player ON player.id = absence.player_id
             WHERE absence.type_id = ? AND absence.category = 'injury'
-            GROUP BY player.id, player.name ORDER BY occurrences DESC LIMIT 50
-        """, (type_id,)),
+            GROUP BY player.id, player.name ORDER BY occurrences DESC LIMIT ?
+        """, (type_id, PLAYER_LIMIT)),
+        "players_total": _count(
+            connection,
+            "SELECT COUNT(DISTINCT player_id) FROM absence WHERE type_id = ? AND category = 'injury'",
+            type_id),
+        "player_limit": PLAYER_LIMIT,
         "positions": rows(connection, """
             SELECT COALESCE(player.position, 'Unknown') AS position, COUNT(*) AS injuries
             FROM absence LEFT JOIN player ON player.id = absence.player_id

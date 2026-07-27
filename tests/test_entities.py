@@ -58,3 +58,29 @@ def test_player_page_links_team_league_and_type(client):
     assert 'href="/team/100"' in response.text
     assert 'href="/league/10"' in response.text
     assert 'href="/type/500"' in response.text
+
+
+def test_capped_lists_report_the_real_total_not_the_page_size(connection, monkeypatch):
+    """A capped table must not present its page size as the total.
+
+    Team 88 in the real database holds 290 absences; before this, the heading
+    read "Absences (50)" because it counted the returned rows. The fixture team
+    has only 3 absences, so the cap is lowered to make truncation happen.
+    """
+    from app import queries
+
+    monkeypatch.setattr(queries, "ABSENCE_LIMIT", 1)
+    detail = queries.team_detail(connection, 100)
+
+    assert len(detail["absences"]) == 1        # truncated, as asked
+    assert detail["absences_total"] == 3       # but the total is still honest
+
+
+def test_type_page_reports_total_players_affected(connection, monkeypatch):
+    from app import queries
+
+    monkeypatch.setattr(queries, "PLAYER_LIMIT", 1)
+    detail = queries.type_detail(connection, 500)
+
+    assert len(detail["players"]) == 1
+    assert detail["players_total"] == 2        # 5001 and 5003 both had type 500

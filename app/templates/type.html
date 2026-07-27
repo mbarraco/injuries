@@ -4,7 +4,7 @@
 {% block content %}
 {{ macros.breadcrumbs([{'label': 'Home', 'href': '/'}, {'label': 'Injury Types', 'href': '/types'}, {'label': type.name}]) }}
 
-<section><h2>Players affected ({{ players|length }})</h2><div class="table-wrap"><table><thead><tr><th>Player</th><th class="num">Occurrences</th><th class="num">Avg days</th></tr></thead><tbody>
+<section>{{ macros.count_heading('Players affected', players|length, players_total) }}<div class="table-wrap"><table><thead><tr><th>Player</th><th class="num">Occurrences</th><th class="num">Avg days</th></tr></thead><tbody>
 {% for row in players %}<tr><td>{{ macros.entity_link('player', row.id, row.name) }}</td><td class="num">{{ row.occurrences }}</td><td class="num">{{ row.avg_days if row.avg_days is not none else '—' }}</td></tr>{% endfor %}
 </tbody></table></div>{{ macros.empty_state('No players recorded for this injury type.') if not players }}</section>
 

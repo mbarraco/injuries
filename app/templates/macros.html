@@ -31,6 +31,16 @@
 </div>
 {% endmacro %}
 
+{# Heading for a list that may be capped. Says "N of M" whenever rows were
+   truncated, so a page-sized count is never mistaken for the real total. #}
+{% macro count_heading(title, shown, total) %}
+  {%- if total is not none and total > shown -%}
+    <h2>{{ title }} <span class="count">({{ '{:,}'.format(shown) }} of {{ '{:,}'.format(total) }})</span></h2>
+  {%- else -%}
+    <h2>{{ title }} <span class="count">({{ '{:,}'.format(total if total is not none else shown) }})</span></h2>
+  {%- endif -%}
+{% endmacro %}
+
 {% macro empty_state(message) %}
 <p class="empty">{{ message }}</p>
 {% endmacro %}

@@ -5,7 +5,7 @@ import sqlite3
 import pytest
 from fastapi.testclient import TestClient
 
-from app import auth, etl
+from app import auth, db, etl
 
 # Every route is behind HTTP Basic auth (app/main.py verify_auth). Credentials
 # come from the environment, so tests set their own rather than depending on
@@ -59,6 +59,18 @@ def reference_db(tmp_path):
     connection.commit()
     connection.close()
     return path
+
+
+@pytest.fixture
+def connection(tmp_path, raw_cache_dir, reference_db):
+    """A built app.db, opened read-only, for testing query functions directly.
+
+    Cheaper and more precise than going through the HTTP client when the
+    assertion is about returned data rather than rendered markup.
+    """
+    output = tmp_path / "app.db"
+    etl.build(raw_cache_dir, reference_db, output)
+    return db.connect(output)
 
 
 @pytest.fixture
