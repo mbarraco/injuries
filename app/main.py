@@ -84,3 +84,18 @@ def page_injuries(request: Request, country: str | None = None, position: str | 
 def page_player(request: Request, player_id: int, _: str = Depends(verify_auth)):
     with _connection() as connection:
         return templates.TemplateResponse(request, "player.html", {"active": "injuries", **queries.player_timeline(connection, player_id)})
+
+
+@app.get("/leagues", response_class=HTMLResponse)
+def page_leagues(request: Request, _: str = Depends(verify_auth)):
+    with _connection() as connection:
+        return templates.TemplateResponse(request, "leagues.html", {"active": "leagues", "leagues": queries.leagues_index(connection)})
+
+
+@app.get("/league/{league_id}", response_class=HTMLResponse)
+def page_league(request: Request, league_id: int, _: str = Depends(verify_auth)):
+    with _connection() as connection:
+        detail = queries.league_detail(connection, league_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="League not found")
+    return templates.TemplateResponse(request, "league.html", {"active": "leagues", **detail})

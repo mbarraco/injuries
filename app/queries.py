@@ -148,3 +148,135 @@ def player_timeline(connection, player_id):
     player = connection.execute("SELECT * FROM player WHERE id = ?", (player_id,)).fetchone()
     injuries = rows(connection, f"{_INJURY_SELECT} WHERE injury.player_id = ? ORDER BY injury.start_date DESC", (player_id,))
     return {"player": dict(player) if player else None, "injuries": injuries}
+
+
+def leagues_index(connection):
+    return rows(connection, """
+        SELECT league.id, league.country, league.name,
+               COUNT(DISTINCT absence.team_id) AS teams,
+               COUNT(absence.id) AS absences
+        FROM league LEFT JOIN absence ON absence.league_id = league.id
+        GROUP BY league.id, league.country, league.name
+        ORDER BY league.country, league.name
+    """)
+
+
+def league_detail(connection, league_id):
+    """A league plus everything reachable from it."""
+    league = connection.execute("SELECT * FROM league WHERE id = ?", (league_id,)).fetchone()
+    if league is None:
+        return None
+    return {
+        "league": dict(league),
+        "teams": rows(connection, """
+            SELECT team.id, team.name, COUNT(absence.id) AS absences
+            FROM absence
+            JOIN team ON team.id = absence.team_id
+            WHERE absence.league_id = ?
+            GROUP BY team.id, team.name ORDER BY absences DESC
+        """, (league_id,)),
+        "seasons": rows(connection, """
+            SELECT id, name, is_current FROM season
+            WHERE league_id = ? ORDER BY name DESC
+        """, (league_id,)),
+        "types": rows(connection, """
+            SELECT injury_type.id, injury_type.name AS type, COUNT(*) AS n,
+                   ROUND(AVG(absence.duration_days), 1) AS avg_days
+            FROM absence LEFT JOIN injury_type ON injury_type.id = absence.type_id
+            WHERE absence.league_id = ? AND absence.category = 'injury'
+            GROUP BY injury_type.id, type ORDER BY n DESC LIMIT 10
+        """, (league_id,)),
+    }
+
+
+def teams_index(connection):
+    return rows(connection, """
+        SELECT team.id, team.name, team.country, COUNT(absence.id) AS absences
+        FROM team LEFT JOIN absence ON absence.team_id = team.id
+        GROUP BY team.id, team.name, team.country
+        ORDER BY absences DESC, team.name
+    """)
+
+
+def team_detail(connection, team_id):
+    """A team plus everything reachable from it."""
+    team = connection.execute("SELECT * FROM team WHERE id = ?", (team_id,)).fetchone()
+    if team is None:
+        return None
+    return {
+        "team": dict(team),
+        "leagues": rows(connection, """
+            SELECT DISTINCT league.id, league.name
+            FROM absence JOIN league ON league.id = absence.league_id
+            WHERE absence.team_id = ?
+        """, (team_id,)),
+        "squad": rows(connection, """
+            SELECT player.id, player.name, player.position,
+                   player_season.season_id, player_season.minutes_played
+            FROM player_season
+            JOIN player ON player.id = player_season.player_id
+            WHERE player_season.team_id = ?
+              AND player_season.season_id = (
+                  SELECT MAX(season_id) FROM player_season WHERE team_id = ?)
+            ORDER BY player.name
+        """, (team_id, team_id)),
+        "absences": rows(connection, f"""
+            {_INJURY_SELECT.replace("FROM injury", "FROM absence AS injury")}
+            WHERE injury.team_id = ? ORDER BY injury.start_date DESC LIMIT 50
+        """, (team_id,)),
+        "transfers_in": rows(connection, """
+            SELECT transfer.id, transfer.date, player.id AS player_id, player.name AS player,
+                   transfer.from_team_id, from_team.name AS from_team
+            FROM transfer
+            JOIN player ON player.id = transfer.player_id
+            LEFT JOIN team AS from_team ON from_team.id = transfer.from_team_id
+            WHERE transfer.to_team_id = ? ORDER BY transfer.date DESC LIMIT 20
+        """, (team_id,)),
+        "transfers_out": rows(connection, """
+            SELECT transfer.id, transfer.date, player.id AS player_id, player.name AS player,
+                   transfer.to_team_id, to_team.name AS to_team
+            FROM transfer
+            JOIN player ON player.id = transfer.player_id
+            LEFT JOIN team AS to_team ON to_team.id = transfer.to_team_id
+            WHERE transfer.from_team_id = ? ORDER BY transfer.date DESC LIMIT 20
+        """, (team_id,)),
+    }
+
+
+def types_index(connection):
+    return rows(connection, """
+        SELECT injury_type.id, injury_type.name, COUNT(*) AS injuries,
+               ROUND(AVG(absence.duration_days), 1) AS avg_duration
+        FROM absence JOIN injury_type ON injury_type.id = absence.type_id
+        WHERE absence.category = 'injury'
+        GROUP BY injury_type.id, injury_type.name
+        ORDER BY injuries DESC
+    """)
+
+
+def type_detail(connection, type_id):
+    """An injury type plus everything reachable from it."""
+    injury_type = connection.execute("SELECT * FROM injury_type WHERE id = ?", (type_id,)).fetchone()
+    if injury_type is None:
+        return None
+    return {
+        "type": dict(injury_type),
+        "players": rows(connection, """
+            SELECT player.id, player.name, COUNT(*) AS occurrences,
+                   ROUND(AVG(absence.duration_days), 1) AS avg_days
+            FROM absence JOIN player ON player.id = absence.player_id
+            WHERE absence.type_id = ? AND absence.category = 'injury'
+            GROUP BY player.id, player.name ORDER BY occurrences DESC LIMIT 50
+        """, (type_id,)),
+        "positions": rows(connection, """
+            SELECT COALESCE(player.position, 'Unknown') AS position, COUNT(*) AS injuries
+            FROM absence LEFT JOIN player ON player.id = absence.player_id
+            WHERE absence.type_id = ? AND absence.category = 'injury'
+            GROUP BY position ORDER BY injuries DESC
+        """, (type_id,)),
+        "summary": dict(connection.execute("""
+            SELECT COUNT(*) AS injuries, ROUND(AVG(duration_days), 1) AS avg_duration,
+                   ROUND(AVG(games_missed), 1) AS avg_games_missed
+            FROM absence WHERE type_id = ? AND category = 'injury'
+        """, (type_id,)).fetchone()),
+    }

@@ -1,0 +1,36 @@
+{# entity_link — the single place an entity reference is rendered.
+   Centralised because 244 teams and 21 players never resolve to names (cup
+   qualifying-round clubs outside the plan), and every call site would
+   otherwise invent its own fallback. #}
+{% macro entity_link(kind, id, label) %}
+  {%- if id and label -%}
+    <a href="/{{ kind }}/{{ id }}" class="entity-link">{{ label }}</a>
+  {%- elif label -%}
+    <span class="entity-unresolved" title="Not in our data">{{ label }}</span>
+  {%- else -%}
+    <span class="muted">—</span>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro breadcrumbs(trail) %}
+<nav class="breadcrumbs" aria-label="Breadcrumb">
+  {% for crumb in trail %}
+    {% if crumb.href and not loop.last %}<a href="{{ crumb.href }}">{{ crumb.label }}</a>
+    {% else %}<span aria-current="page">{{ crumb.label }}</span>{% endif %}
+    {% if not loop.last %}<span class="sep">›</span>{% endif %}
+  {% endfor %}
+</nav>
+{% endmacro %}
+
+{% macro stat(value, label, href=None) %}
+<div class="stat">
+  {% if href %}<a href="{{ href }}">{% endif %}
+  <div class="value">{{ '{:,}'.format(value) if value is number else value }}</div>
+  <div class="label">{{ label }}</div>
+  {% if href %}</a>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro empty_state(message) %}
+<p class="empty">{{ message }}</p>
+{% endmacro %}
