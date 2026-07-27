@@ -282,3 +282,99 @@ something (note the correction and link back).
 - **Staying UEFA-only.** Focus on maximising the UEFA data we can already
   reach (historical fixture backfill toward 2014) rather than chasing
   confederations that need a paid plan expansion.
+
+---
+
+## 2026-07-27
+
+### Subscription upgraded: 57 → 62 visible leagues
+- Re-ran `scripts/sm_leagues_by_confederation.py` after the upgrade: **62
+  leagues visible** (Europe 55, "Asia" 7 — same transcontinental caveat as
+  2026-07-26). Still exactly one confederation: UEFA.
+
+### The backfill was blind to 9 in-plan leagues — including all UEFA club competitions
+- **`ingest/backfill.py` never asked the API which leagues exist.** It reads a
+  hand-maintained reference file (`data/sportmonks_coverage_uefa55.json`,
+  scraped from the public coverage page on 2026-07-23) listing 53 *domestic*
+  leagues. So it happily reported `fetched=0 cached=151` for every league —
+  true, and completely misleading. It had backfilled everything *in its list*,
+  and the list was stale.
+- Consequence: **Champions League, Europa League, Conference League and UEFA
+  Super Cup had never been downloaded at all.** Not a quota problem, not an
+  access problem — they were simply never asked for. Four of the nine missing
+  ids predate the upgrade; they were in-plan and invisible the whole time.
+- **Lesson: a static reference list is a silent single point of failure.** Any
+  "nothing to fetch" result is only as trustworthy as the list it iterates.
+  Diff against the source of truth, don't assume the list is current.
+- Fix: `scripts/sm_find_missing_leagues.py` fetches `/leagues`, diffs it
+  against the reference file, prints the gap, and caches the full list to
+  `data/raw/sportmonks/leagues.json` (one League-bucket call, effectively
+  free). Run it after any plan change — and periodically regardless.
+
+### What the UEFA club competitions actually contain
+| competition | id | non-empty months | fixtures | sidelined rows | span |
+|---|---|---|---|---|---|
+| Europa League | 5 | 126 | 4,553 | 11,796 | 2014–2026 |
+| Champions League | 2 | 133 | 2,853 | 11,146 | 2014–2026 |
+| Europa Conference League | 2286 | 49 | 2,269 | 7,003 | 2021–2026 |
+| UEFA Super Cup | 1328 | 12 | 12 | 20 | 2014–2025 |
+
+- Conference League starting at 2021 is correct — the competition didn't exist
+  before then. A "gap" that matches real-world history is not a data gap.
+- Dataset after backfill + enrich: **25,890 distinct absences (18,380
+  injuries)**, up from 16,770. Fixture-months 8,003 → 9,362, non-empty
+  1,116 → 1,454 (all enriched to the rich include bundle). Players cached
+  10,737 → 13,130.
+
+### Correction to 2026-07-26: play-off variants DO hold distinct absences
+- That entry guessed the surplus in-plan leagues were "play-off / variant
+  sub-competitions … normally already contained within the parent league's
+  fixtures, so unlikely to hold *distinct* sidelined records — not yet
+  verified." **Now verified, and the guess was wrong.**
+- Belgium's UEFA Europa League Play-offs (id 1371) alone carries 192 fixtures
+  and 152 sidelined rows. Russia's (495), Ukraine's (1691), Andorra's (1902)
+  and Azerbaijan's (3570) are small but non-zero fixture-wise.
+- The bigger error in that entry was assuming the surplus was *only* play-off
+  variants. It also contained the four UEFA club competitions above. **Don't
+  characterise an unexamined set by its most boring plausible member.**
+
+### Correction: the "19,533 unknown-category rows" never existed
+- Earlier work (and the expansion design doc) recorded a large `unknown`
+  category — 19,533 rows then, 22,686 now — treated as a possible vendor
+  data-quality problem.
+- **It's a counting artefact, not missing data.** The feed repeats an absence
+  once per missed fixture, and on many repeats the nested `sideline` object
+  isn't populated. Tally categories per *pivot row* and those repeats show up
+  as `unknown`; tally per distinct `sideline_id` (what the ETL loads) and
+  **zero** absences are uncategorised — 18,380 injury + 7,430 suspended + 58
+  suspension + 22 doubtful = 25,890 exactly.
+- `scripts/sm_dataset_consistency.py` now reports both, clearly labelled, and
+  only warns on distinct-absence unknowns. The design doc carries a correction
+  note. The category-preserving `absence` schema is still right — the
+  *suspension* half of that gap was real.
+- **Lesson: state the unit before the number.** "22,686 unknown" was true of
+  pivot rows and false of absences, and only the second reading was alarming.
+
+### Out-of-plan silence, confirmed again at the qualifying-round boundary
+- Entity resolution fetched all 243 previously-missing teams; **resolved count
+  did not move** (866/1,109). Every one returned the usual clean 200 + empty
+  `data`.
+- Cause: UCL/UEL/UECL qualifying rounds pull in clubs from associations and
+  divisions outside the 62 in-plan leagues. Orphan teams therefore rose
+  178 → 244 (22%). Expected, not a defect — but note it means **continental
+  competitions structurally guarantee orphan entities**, and the orphan rate
+  is not a quality metric you can drive to zero.
+- Orphan players went the other way, 52 → 21, since the new competitions
+  resolved players the domestic-only pass had referenced but never fetched.
+
+### Open question: is the hourly bucket actually 5,000, not 3,000?
+- Observed `remaining` values across runs: fixture 4,414, player 4,977 /
+  4,520 / 2,585, team 4,822 / 4,757 — all well above the **3,000** this log
+  recorded for Pro on 2026-07-23, and consistent with the **5,000**
+  Enterprise figure.
+- Note the player 4,520 reading predates the 2026-07-27 upgrade, so this is
+  **not** simply an effect of the new plan.
+- Unresolved: either the tier mapping in the 2026-07-23 table is wrong, or the
+  trial grants a higher ceiling than the nominal tier. `GET /core/my/usage`
+  (noted 2026-07-23, still unused) would settle it. Treat the 3,000 figure as
+  unverified rather than authoritative when sizing runs.
