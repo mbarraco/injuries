@@ -26,11 +26,22 @@ def collect_absences(raw_dir):
     processing makes the first observed league attribution deterministic.
     """
     absences = {}
+    # Sidelined density per year, for the coverage-ramp metrics. The vendor's
+    # historical coverage improves steadily over time (no absence records exist
+    # before 2006 at all), so raw yearly counts describe Sportmonks' backfill
+    # effort, not football. Measured here so the app can surface the caveat.
+    fixtures_by_year, sidelined_by_year = {}, {}
     files = sorted(glob.glob(os.path.join(raw_dir, "*.json")))
     for path in files:
         with open(path, encoding="utf-8") as source:
             document = json.load(source)
+        # Filename is {league_id}_{YYYY-MM}.json — the window queried, which is
+        # what we want here regardless of individual fixture timestamps.
+        year = os.path.basename(path).split("_")[-1][:4]
         for fixture in document.get("fixtures", []):
+            fixtures_by_year[year] = fixtures_by_year.get(year, 0) + 1
+            sidelined_by_year[year] = (sidelined_by_year.get(year, 0)
+                                       + len(fixture.get("sidelined") or []))
             for pivot in fixture.get("sidelined") or []:
                 sideline = pivot.get("sideline") or {}
                 sideline_id = pivot.get("sideline_id") or sideline.get("id")
@@ -53,7 +64,7 @@ def collect_absences(raw_dir):
                     "completed": sideline.get("completed"),
                     "fixture_appearances": 1,
                 }
-    return absences, len(files)
+    return absences, len(files), fixtures_by_year, sidelined_by_year
 
 
 def _stat_total(details, type_id):
@@ -125,6 +136,30 @@ def derive_fields(absence, birth_date):
     return duration, age, int(end_date is None)
 
 
+def _write_coverage_metrics(connection, fixtures_by_year, sidelined_by_year):
+    """Sidelined records per fixture, per year — the dataset's biggest caveat.
+
+    This ratio climbs from 0.00 (no absence records exist before 2006) to ~4
+    today. That is the vendor's historical coverage improving, NOT a real-world
+    injury trend, so any year-on-year comparison of injury counts measures
+    Sportmonks' backfill rather than football. Recorded per year so the
+    distortion is visible and correctable instead of silently wrong.
+
+    Caveat worth carrying with the number: the competition mix is not constant.
+    Domestic leagues only exist here from 2024 (the plan sells 3 seasons), so
+    earlier years are UEFA cups alone. The 2023->2024 step therefore blends a
+    coverage change with a mix change and shouldn't be attributed to either.
+    """
+    metrics = []
+    for year in sorted(fixtures_by_year):
+        fixtures = fixtures_by_year[year]
+        density = round(sidelined_by_year.get(year, 0) / fixtures, 2) if fixtures else 0
+        metrics.append((f"coverage_{year}", density,
+                        f"sidelined rows per fixture in {year} ({fixtures} fixtures) — "
+                        f"vendor coverage, not injury rate; pre-2024 is cups-only"))
+    connection.executemany("INSERT INTO data_quality VALUES (?, ?, ?)", metrics)
+
+
 def _write_quality_metrics(connection, absences, rows, category_counts, file_count):
     """Record measured coverage/quality numbers for the app to render.
 
@@ -164,7 +199,7 @@ def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEF
     the `player_season` table (playing time per season). Left None by callers
     that don't need it (e.g. tests), so the player_season table stays empty.
     """
-    absences, file_count = collect_absences(raw_dir)
+    absences, file_count, fixtures_by_year, sidelined_by_year = collect_absences(raw_dir)
     if os.path.exists(out_db):
         os.remove(out_db)
     connection = sqlite3.connect(out_db)
@@ -223,6 +258,7 @@ def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEF
             connection.execute("INSERT INTO data_quality VALUES (?, ?, ?)",
                                ("transfer_rows", len(transfers), "distinct transfer records from enriched cache"))
         _write_quality_metrics(connection, absences, rows, category_counts, file_count)
+        _write_coverage_metrics(connection, fixtures_by_year, sidelined_by_year)
         connection.execute("INSERT INTO ingest_run (run_at, source_file_count, notes) VALUES (?, ?, ?)",
                            (datetime.now(timezone.utc).isoformat(timespec="seconds"), file_count,
                             "rebuilt from raw cache"))

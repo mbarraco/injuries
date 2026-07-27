@@ -54,6 +54,22 @@ def test_stores_non_injury_absence_with_null_start_date(tmp_path, reference_db):
     assert connection.execute("SELECT start_date, is_ongoing FROM absence WHERE id = 999").fetchone() == (None, 1)
 
 
+def test_records_sidelined_coverage_per_year(tmp_path, raw_cache_dir, reference_db):
+    """Coverage density is measured per year, not just totalled.
+
+    Sidelined records per fixture climb from 0.00 pre-2006 to ~8 today purely
+    because the vendor's historical coverage improves, so a year-on-year injury
+    comparison measures backfill effort rather than football. The metric exists
+    to make that visible; guard it so it can't be dropped silently.
+    """
+    output = tmp_path / "app.db"
+    etl.build(raw_cache_dir, reference_db, output)
+    connection = sqlite3.connect(output)
+    # The fixture cache is one 2025-03 file: 2 fixtures carrying 4 sidelined rows.
+    assert connection.execute(
+        "SELECT value FROM data_quality WHERE metric = 'coverage_2025'").fetchone() == (2.0,)
+
+
 def test_extracts_player_season_stats(tmp_path, raw_cache_dir, reference_db):
     """Enriched player cache (statistics.details) becomes player_season rows."""
     players_dir = tmp_path / "players"

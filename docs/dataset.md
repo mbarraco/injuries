@@ -92,7 +92,7 @@ those nouns together with the facts:
 records, how complete the fields are, etc.) and `league_coverage` (how much data
 each league has, per period).
 
-## Two things that trip everyone up
+## Three things that trip everyone up
 
 **1. The raw feed double-counts.** Because injuries ride on fixtures, *one*
 injury is repeated once for *every match the player missed*. A 7-game injury
@@ -106,6 +106,34 @@ uncategorised entries. We now **keep all of them** in the `absence` table
 `category = 'injury'`. So the database is a little broader than "injuries" if you
 ever want to look at suspensions too.
 
+**3. Injury coverage improves over time — so DON'T compare years.** This is the
+big one. Sportmonks recorded almost no absences in the early years and has got
+steadily more thorough since. Sidelined records per fixture, from the
+`coverage_<year>` rows in `data_quality`:
+
+| 2000–06 | 2009 | 2012 | 2014 | 2017 | 2020 | 2022 | 2024 | 2026 |
+|---|---|---|---|---|---|---|---|---|
+| 0.00 | 0.10 | 0.41 | 0.76 | 1.62 | 3.23 | 3.96 | 3.21 | 3.93 |
+
+**There are literally zero injury records before 2006.** A chart of "injuries per
+season since 2000" would show a dramatic rise that is *entirely* the provider
+getting better at recording them — nothing to do with football.
+
+Two things to read carefully here:
+
+- **The ramp is steep up to ~2020, then roughly flat (~3–4).** So recent seasons
+  are broadly comparable with each other; anything reaching back past 2020 is
+  not.
+- **The series changes composition in 2024.** Before then it's UEFA cups only
+  (domestic seasons don't exist in our data); from 2024 it's cups *plus* 58
+  domestic leagues, which run a lower density. So the 2023 → 2024 step mixes a
+  coverage change with a competition-mix change and shouldn't be read as either
+  one alone.
+
+For a clean like-for-like trend, filter to a single competition — the cups are
+the only ones with real history, and cups-only density keeps climbing (to ~6.9
+by 2025) rather than flattening.
+
 ## What questions this lets us answer
 
 - Which **positions** get injured most? Which **injury types** keep players out
@@ -117,11 +145,17 @@ ever want to look at suspensions too.
 
 ## Coverage & honesty (the fine print)
 
-- **Breadth:** 53 of the 55 UEFA top leagues resolve. (Liechtenstein has no
-  domestic league; a couple sit outside the current plan.)
-- **Depth:** the cache currently holds about the **last 3 years**; the
-  historical backfill is extending this toward **2014**, as far back as
-  Sportmonks actually has data.
+- **Breadth:** 62 competitions — 58 domestic UEFA leagues plus the **Champions
+  League, Europa League, Conference League and Super Cup**. (Liechtenstein has
+  no domestic league of its own.)
+- **Depth is very uneven, and this is a hard limit of the subscription:**
+  - **Domestic leagues: 3 seasons only** (2024/25 onward). The plan simply
+    doesn't sell older seasons, and fixtures can only be fetched for seasons
+    it includes — so there is *no* domestic data before 2024 and no way to
+    fetch any. England's Premier League has zero fixtures for 2014–2023.
+  - **UEFA cups: back to 2000** (Conference League to 2021, when it was
+    founded). This is where all the long history lives — though see gotcha 3:
+    the early years hold fixtures but almost no injury records.
 - **Honest caveats:** a league is attributed from the fixture the record showed
   up in; season comes from that parent fixture; and a slice of incidentally
   referenced teams (cup opponents, lower divisions) never resolve to names. None
@@ -129,8 +163,22 @@ ever want to look at suspensions too.
 
 ## A note on the current numbers
 
-As a rough snapshot of the 3-year cache *before* the historical backfill: the
-raw feed holds tens of thousands of fixture-level mentions that dedupe down to
-roughly **17,000 distinct absences**, the majority of them genuine injuries.
-These figures will grow as the backfill reaches further into the past — the
-`data_quality` table always holds the live, measured counts after each rebuild.
+Measured after the 2026-07-27 rebuild, once the backfill had reached as far as
+the subscription allows in both directions:
+
+| | |
+|---|---|
+| Distinct absences | **26,408** |
+| — of which injuries | 18,898 |
+| Player-seasons (playing time) | 44,213 |
+| Transfers | 77,152 |
+| Players / teams | 13,315 / 867 |
+
+The raw feed's ~117,000 fixture-level mentions dedupe down to those 26,408 real
+spells. The `data_quality` table always holds the live, measured counts after
+each rebuild, so treat that as the source of truth rather than this snapshot.
+
+There is no more data to fetch on this plan: domestic seasons are capped at 3,
+cup history is exhausted back to 2000, and absences can only be reconstructed
+from fixtures (there is no player-level injury endpoint). Further work is
+analysis, not collection.

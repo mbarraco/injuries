@@ -189,6 +189,12 @@ def main(argv=None):
                         help="ignore the cache and re-fetch every month")
     parser.add_argument("--no-resolve", action="store_true",
                         help="skip entity resolution after fetching")
+    parser.add_argument("--leagues",
+                        help="comma-separated league ids to fetch (default: all). Season "
+                             "depth varies hugely — the UEFA cups expose ~27 seasons back "
+                             "to 2000 while domestic leagues expose 3 — so a deep --since "
+                             "should target the deep leagues instead of spending thousands "
+                             "of calls on windows that cannot contain data")
     args = parser.parse_args(argv)
 
     windows = (months.recent_windows(args.months) if args.months
@@ -201,6 +207,18 @@ def main(argv=None):
     if client is None:
         return 1
     leagues = paths.load_leagues()
+    if args.leagues:
+        wanted = {int(part) for part in args.leagues.split(",") if part.strip()}
+        leagues = [league for league in leagues if league["id"] in wanted]
+        unknown = wanted - {league["id"] for league in leagues}
+        if unknown:
+            # Loudly, not silently: a typo'd id would otherwise just narrow the
+            # run and look like a successful smaller backfill.
+            print(f"! not in the league reference file, ignoring: {sorted(unknown)}")
+        if not leagues:
+            print("! no matching leagues — nothing to fetch")
+            return 1
+
     print(f"backfilling {len(leagues)} leagues x {len(windows)} months "
           f"({windows[0][0][:7]} .. {windows[-1][0][:7]}), concurrency={args.concurrency}")
 

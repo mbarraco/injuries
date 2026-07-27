@@ -367,6 +367,80 @@ something (note the correction and link back).
 - Orphan players went the other way, 52 → 21, since the new competitions
   resolved players the domestic-only pass had referenced but never fetched.
 
+### Season access is the real cap on history — and it differs wildly by competition
+- Measured live with `scripts/sm_check_season_depth.py`
+  (`/leagues/{id}?include=seasons`, one League-bucket call each):
+
+  | competition | seasons exposed | earliest |
+  |---|---|---|
+  | Champions League (2) | 27 | 2000 |
+  | Europa League (5) | 27 | 2000 |
+  | UEFA Super Cup (1328) | 22 | 2005 |
+  | Europa Conference League (2286) | 6 | 2021 (competition founded then) |
+  | **all 58 domestic leagues** | **3** | **2024** |
+
+- **Domestic leagues expose exactly 3 seasons (2024/25–2026/27).** That is why
+  the fixture cache held ~zero domestic data before 2024 — England's Premier
+  League had 0 fixtures for 2014–2023. `/fixtures/between` can only return
+  fixtures from in-plan seasons, so old windows come back legitimately empty.
+  **Not a bug, not a query-path problem** (the backfill already uses the path
+  verified on 2026-07-23), and **not fixable by more fetching.**
+- This settles the 2026-07-23 open question "does the TRIAL restrict historical
+  depth vs a paid plan?" — **yes, via season access**, and it's severe for
+  domestic competitions.
+- Corollary: the `(2014-2026)` spans printed by the inventory script are
+  min..max of years holding *any* data, **not continuous coverage**. Easy to
+  misread as depth we don't have.
+- Added `--leagues` to `ingest/backfill.py`. Season depth varies so much that a
+  blanket deep `--since` would spend ~8,900 calls on domestic windows that
+  provably cannot contain data.
+
+### Sidelined coverage ramps hard over time — DO NOT compare injury rates across years
+- Backfilled the cups to 2000 (`--since 2000-01 --until 2013-12 --leagues
+  2,5,1328`, 504 calls). Got **8,450 fixtures but only 1,155 sidelined rows**,
+  vs 22,962 rows from the 7,418 fixtures of 2014–2026.
+- Sidelined rows per fixture, UEFA cups, by year:
+
+  | 2000–05 | 2006 | 2009 | 2011 | 2014 | 2017 | 2020 | 2023 | 2025 | 2026 |
+  |---|---|---|---|---|---|---|---|---|---|
+  | 0.00 | 0.00 | 0.10 | 0.31 | 0.76 | 1.71 | 3.23 | 3.29 | 6.88 | 7.97 |
+
+- **Zero injury records exist before 2006**, and the density climbs ~monotonic
+  for 20 years. This is Sportmonks' historical coverage improving, **not a
+  real-world injury trend.**
+- **This is the single most important analytical caveat in the dataset.** A
+  naive "injuries per season over time" chart would show a dramatic rise that
+  is entirely an artefact. Any longitudinal analysis must either restrict to
+  recent years (2020+ looks plausibly stable-ish) or explicitly normalise by
+  per-year coverage. Pre-2014 cup data is useful for *match context*, close to
+  worthless for *injury* work.
+- Now recorded as `coverage_<year>` rows in `data_quality` (one per year,
+  written by `app/etl.py`) so the ramp is visible from the database itself, not
+  only from this log. **Over all competitions** the series is flatter than the
+  cups-only figures above — 0.00 (2000–06) → 0.76 (2014) → 3.23 (2020) → 3.93
+  (2026) — because it changes composition: pre-2024 is cups only (domestic
+  seasons don't exist in our data), 2024+ is cups plus 58 domestic leagues,
+  which run a lower density. **The 2023→2024 step therefore mixes a coverage
+  change with a competition-mix change** — don't read it as either alone. For a
+  like-for-like trend, filter to one competition.
+
+### Player-level `sidelined` does not exist — fixtures are the ONLY absence source
+- `/players/{id}?include=sidelined` → **HTTP 404, "The requested include
+  'sidelined' does not exist on Player"**. Same for `sidelined.sideline`.
+- Corrects an earlier assumption in this project that a player-level sidelined
+  include was available and merely untested for depth. It isn't available at
+  all. (`sidelined.sideline` is valid on **fixtures**, where `sidelined` is a
+  pivot wrapping a `sideline` object — that nesting is fixture-specific.)
+- Combined with the 2026-07-23 finding that the **team-level** include returns
+  only currently-open absences, this means: **every historical absence must be
+  reconstructed from `/fixtures/between`.** There is no alternate route, so
+  absence history is hard-capped by fixture/season access above.
+- Lesson for probes: a 404 saying "include does not exist" is a *schema* fact,
+  not a missing-data fact — worth reading the message rather than treating any
+  non-200 as "no data". An earlier version of the probe script printed a
+  confident "don't bother" verdict after all 5 requests 404'd; it now refuses
+  to conclude anything when nothing succeeded.
+
 ### Open question: is the hourly bucket actually 5,000, not 3,000?
 - Observed `remaining` values across runs: fixture 4,414, player 4,977 /
   4,520 / 2,585, team 4,822 / 4,757 — all well above the **3,000** this log
