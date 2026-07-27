@@ -18,9 +18,18 @@ gaps drive this:
    real archive goes back to at least October 2014 (logbook-verified).
 2. **Entity resolution is incomplete**: 174/975 referenced teams and
    36/10,770 referenced players were never fetched.
-3. **`app/etl.py` silently drops non-`injury` categories** — 19,533
-   `unknown`-category raw rows and 12,667 suspension rows never reach
-   `app.db` today.
+3. **`app/etl.py` silently drops non-`injury` categories** — 12,667
+   suspension rows never reach `app.db` today.
+
+   > **Correction (2026-07-27):** this point originally also claimed 19,533
+   > `unknown`-category rows were being dropped. That was a miscount, and no
+   > such records exist. `unknown` was tallied per *pivot row*, but the feed
+   > repeats an absence once per missed fixture and often omits the nested
+   > `sideline` object on the repeats — so the same absence shows as
+   > `unknown` on some rows and with its real category on others. Counted per
+   > distinct `sideline_id` (what the ETL actually loads), **zero** absences
+   > are uncategorised. The suspension half of this gap was real, so the
+   > category-preserving `absence` schema below still stands.
 
 Because Sportmonks quota resets hourly and out-of-plan access degrades
 silently (200 + empty `data`, not 403 — see the logbook), the pipeline
@@ -38,17 +47,51 @@ script.
 | Players cached / referenced | 10,734 / 10,770 |
 | Teams cached / referenced | 801 / 975 |
 
+The `unknown 19,533` above is a **pivot-row** count, not an absence count —
+see the correction under gap 3. Per distinct `sideline_id` there are no
+uncategorised absences.
+
+### Superseded by the 2026-07-27 expansion
+
+A subscription upgrade made 9 further leagues visible, including the UEFA
+club competitions the original 53-league domestic list never covered
+(Champions League, Europa League, Conference League, Super Cup). Backfilled
+and enriched the same day; `scripts/sm_find_missing_leagues.py` now diffs the
+API's `/leagues` against the reference file so a stale list can't hide
+in-plan competitions again.
+
+| | before | after |
+|---|---|---|
+| Leagues backfilled | 53 | 62 |
+| Fixture-month files | 8,003 | 9,362 |
+| Non-empty months (all rich) | 1,116 | 1,454 |
+| Distinct absences | 16,770 | 25,890 |
+| — of which injuries | — | 18,380 |
+| Players cached | 10,737 | 13,130 |
+| Teams cached / referenced | 801 / 977 | 867 / 1,109 |
+
+Orphan teams rose to 244: UCL/UEL qualifying rounds reference clubs outside
+the 62 in-plan leagues, and those fetches return the usual silent 200 + empty
+`data`. Expected, not a defect.
+
 ## Architecture
 
 New `ingest/` package, sibling to `app/` and `scripts/`:
 
 ```
 ingest/
-  sportmonks_client.py   # shared throttle-aware HTTP layer
-  backfill.py            # wide date-range + entity-gap fetch (replaces sm_sweep55.py
+  sportmonks_client.py   # shared throttle-aware HTTP layer + raw-JSON cache
+  paths.py               # cache/reference filesystem layout + league loader
+  months.py              # pure calendar-month window arithmetic
+  resolve.py             # entity id -> name resolution into coverage.db
+  backfill.py            # wide date-range fetch + watermark (replaces sm_sweep55.py
                           # and the fixture-resolution half of sm_resolve_entities.py)
   sync.py                # incremental fetch from the stored watermark
 ```
+
+(Implementation note: the original 3-file sketch grew to 6 small,
+single-purpose modules — `paths`/`months`/`resolve` were split out rather
+than crammed into `backfill.py` — for testability and clear boundaries.)
 
 ### `sportmonks_client.py`
 
@@ -149,6 +192,11 @@ queryable.
 gated on investigation — but `data_quality` gets a metric noting the count
 and a spot-check note on likely cause, since that's cheap and may surface
 a real vendor data-quality issue worth flagging later.
+
+**As built (2026-07-27):** the handling is unchanged, but the case never
+arises — the measured count is zero (see the correction under gap 3). The
+`data_quality` per-category metrics are emitted regardless, so a future
+genuinely-uncategorised row would still show up.
 
 ## Throttling
 

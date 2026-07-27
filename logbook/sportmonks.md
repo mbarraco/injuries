@@ -252,3 +252,33 @@ something (note the correction and link back).
   response before assuming enrichment needs a new API call.** Several of
   these fields cost nothing extra since we already cache the complete
   raw object per entity, not just the field we originally needed.
+
+---
+
+## 2026-07-26
+
+### Plan is UEFA-only — confirmed by confederation probe
+- Ran `scripts/sm_leagues_by_confederation.py` against the live Pro trial:
+  **57 leagues visible total**, grouped by their country's continent —
+  Europe 50, Asia 7.
+- The "Asia 7" are **not** AFC access: they're transcontinental UEFA members
+  whose *geographic* continent Sportmonks tags as Asia — Armenia, Azerbaijan,
+  Georgia, Israel, Kazakhstan, Türkiye (top leagues) + an Azerbaijan play-off
+  variant. Lesson: **continent is a proxy for confederation, not equal to
+  it.** Grouping leagues by `country.continent_id` will mislabel these six.
+- Net: exactly **one confederation (UEFA)** is in-plan. No CONMEBOL / CAF /
+  AFC(proper) / CONCACAF / OFC on this subscription. Since `/leagues` is
+  subscription-filtered (see 2026-07-23), this list IS the reachable
+  fixture/match universe for the current token — getting other confederations
+  requires adding those leagues to the plan, not a code change (the backfill
+  is already league-id-driven).
+- **57 in-plan vs the 53 top-tier leagues we backfill**: the ~4 surplus are
+  play-off / variant sub-competitions (confirmed one: "Play-offs 1/2
+  (Azerbaijan)"). These are normally already contained within the parent
+  league's fixtures, so unlikely to hold *distinct* sidelined records — not
+  yet verified.
+
+### Scope decision
+- **Staying UEFA-only.** Focus on maximising the UEFA data we can already
+  reach (historical fixture backfill toward 2014) rather than chasing
+  confederations that need a paid plan expansion.

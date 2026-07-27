@@ -6,6 +6,8 @@
     "Standard Player Stats and Lineups", "Livescores and Events", "Match Statistics",
     "Standings Live", "Topscorers", "Historical data"
   ],
+  "_added_2026_07_27": "9 leagues appended after a subscription upgrade, found by diffing the API's /leagues against this file (scripts/sm_find_missing_leagues.py) — NOT from the coverage page. They therefore carry no advanced_player_stats/standard_player_stats/historical_data flags: those are coverage-page values and inventing them here would fake provenance. `_source: api-leagues-diff` marks them. Four are UEFA club competitions (Champions League, Europa League, Conference League, Super Cup) that the original 53-league domestic list never included.",
+
   "_missing": {
     "LIECHTENSTEIN": "no domestic league (clubs play in the Swiss pyramid)",
     "NORTH MACEDONIA": "not listed on the coverage page under this name"
@@ -63,6 +65,16 @@
     {"country": "SWITZERLAND", "league": "Super League", "id": 591, "advanced_player_stats": true, "standard_player_stats": true, "historical_data": true},
     {"country": "TURKEY", "league": "Super Lig", "id": 600, "advanced_player_stats": true, "standard_player_stats": true, "historical_data": true},
     {"country": "UKRAINE", "league": "Premier League", "id": 609, "advanced_player_stats": false, "standard_player_stats": true, "historical_data": true},
-    {"country": "WALES", "league": "Premier League", "id": 624, "advanced_player_stats": false, "standard_player_stats": false, "historical_data": true}
+    {"country": "WALES", "league": "Premier League", "id": 624, "advanced_player_stats": false, "standard_player_stats": false, "historical_data": true},
+
+    {"country": "EUROPE", "league": "Champions League", "id": 2, "sub_type": "cup_international", "_source": "api-leagues-diff"},
+    {"country": "EUROPE", "league": "Europa League", "id": 5, "sub_type": "cup_international", "_source": "api-leagues-diff"},
+    {"country": "EUROPE", "league": "Europa Conference League", "id": 2286, "sub_type": "cup_international", "_source": "api-leagues-diff"},
+    {"country": "EUROPE", "league": "UEFA Super Cup", "id": 1328, "sub_type": "cup_international", "_source": "api-leagues-diff"},
+    {"country": "RUSSIA", "league": "Premier League Play-offs", "id": 495, "sub_type": "play-offs", "_source": "api-leagues-diff"},
+    {"country": "BELGIUM", "league": "UEFA Europa League Play-offs", "id": 1371, "sub_type": "play-offs", "_source": "api-leagues-diff"},
+    {"country": "UKRAINE", "league": "Premier League - Playoffs", "id": 1691, "sub_type": "play-offs", "_source": "api-leagues-diff"},
+    {"country": "ANDORRA", "league": "Primera Division - Playoffs", "id": 1902, "sub_type": "play-offs", "_source": "api-leagues-diff"},
+    {"country": "AZERBAIJAN", "league": "Play-offs 1/2", "id": 3570, "sub_type": "domestic", "_source": "api-leagues-diff"}
   ]
 }
