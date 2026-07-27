@@ -53,6 +53,7 @@ def reference_db(tmp_path):
     connection.execute("INSERT INTO sportmonks_player VALUES ('5001', 'A. Player', 'Defender', 'Centre Back', 'Brazil', '2000-01-01', 180, 75)")
     connection.execute("INSERT INTO sportmonks_player VALUES ('5003', 'C. Player', 'Forward', 'Striker', 'Spain', '1995-06-15', 175, 70)")
     connection.execute("INSERT INTO sportmonks_team VALUES ('100', 'FC Test', 'Testland', 1900, 'FCT')")
+    connection.execute("INSERT INTO sportmonks_team VALUES ('200', 'FC Rival', 'Testland', 1910, 'FCR')")
     connection.execute("INSERT INTO sportmonks_type VALUES ('500', 'Knock')")
     connection.execute("INSERT INTO sportmonks_season VALUES ('77', '10', 'Testland', 'Test League', '2024/2025', 1, '{}')")
     # A second, non-current season with a HIGHER id than the current one — this

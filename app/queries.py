@@ -157,9 +157,34 @@ def filter_options(connection):
 
 
 def player_timeline(connection, player_id):
+    """A player plus everything reachable from it: injuries, season minutes,
+    transfer history, and the current team derived from the current season."""
     player = connection.execute("SELECT * FROM player WHERE id = ?", (player_id,)).fetchone()
     injuries = rows(connection, f"{_INJURY_SELECT} WHERE injury.player_id = ? ORDER BY injury.start_date DESC", (player_id,))
-    return {"player": dict(player) if player else None, "injuries": injuries}
+    seasons = rows(connection, """
+        SELECT player_season.season_id, season.name AS season_name, season.is_current,
+               player_season.team_id, team.name AS team_name,
+               player_season.minutes_played, player_season.appearances
+        FROM player_season
+        JOIN season ON season.id = player_season.season_id
+        LEFT JOIN team ON team.id = player_season.team_id
+        WHERE player_season.player_id = ?
+        ORDER BY season.name DESC
+    """, (player_id,))
+    transfers = rows(connection, """
+        SELECT transfer.id, transfer.date,
+               transfer.from_team_id, from_team.name AS from_team,
+               transfer.to_team_id, to_team.name AS to_team
+        FROM transfer
+        LEFT JOIN team AS from_team ON from_team.id = transfer.from_team_id
+        LEFT JOIN team AS to_team ON to_team.id = transfer.to_team_id
+        WHERE transfer.player_id = ? ORDER BY transfer.date DESC
+    """, (player_id,))
+    current = next((season for season in seasons if season["is_current"]), None)
+    current_team = ({"id": current["team_id"], "name": current["team_name"]}
+                    if current and current["team_id"] else None)
+    return {"player": dict(player) if player else None, "injuries": injuries,
+            "seasons": seasons, "transfers": transfers, "current_team": current_team}
 
 
 def leagues_index(connection):

@@ -60,6 +60,13 @@ def test_player_page_links_team_league_and_type(client):
     assert 'href="/type/500"' in response.text
 
 
+def test_player_page_shows_season_minutes_and_transfer_history(client):
+    response = client.get("/player/5001")
+    assert 'href="/season/77"' in response.text  # per-season minutes, season linked
+    assert "944" in response.text                # the minutes figure itself
+    assert 'href="/team/200"' in response.text    # transfer history, from-club linked
+
+
 def test_capped_lists_report_the_real_total_not_the_page_size(connection, monkeypatch):
     """A capped table must not present its page size as the total.
 
