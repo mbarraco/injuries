@@ -2,7 +2,7 @@
 import os
 
 from fastapi import FastAPI, Request, Depends, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -26,6 +26,11 @@ def _connection():
     return db.connect()
 
 
+def _category_or_none(value):
+    """"all" (the UI's plain-form choice for "no filter") becomes None."""
+    return None if value in (None, "", "all") else value
+
+
 @app.get("/api/overview")
 def api_overview(_: str = Depends(verify_auth)):
     with _connection() as connection:
@@ -47,11 +52,23 @@ def api_analytics(_: str = Depends(verify_auth)):
 
 
 @app.get("/api/injuries")
-def api_injuries(country: str | None = None, position: str | None = None, type_name: str | None = None,
-                 ongoing_only: bool = False, sort: str = "start_date", direction: str = "desc",
-                 page: int = 1, per_page: int = 50, _: str = Depends(verify_auth)):
+def api_injuries(category: str = "injury", country: str | None = None, position: str | None = None,
+                 type_name: str | None = None, ongoing_only: bool = False, sort: str = "start_date",
+                 direction: str = "desc", page: int = 1, per_page: int = 50, _: str = Depends(verify_auth)):
     with _connection() as connection:
-        return queries.injury_list(connection, country, position, type_name, ongoing_only, sort, direction, page, per_page)
+        return queries.injury_list(connection, category=_category_or_none(category), country=country,
+                                   position=position, type_name=type_name, ongoing_only=ongoing_only, sort=sort,
+                                   direction=direction, page=page, per_page=per_page)
+
+
+@app.get("/api/absences")
+def api_absences(category: str | None = None, country: str | None = None, position: str | None = None,
+                 type_name: str | None = None, ongoing_only: bool = False, sort: str = "start_date",
+                 direction: str = "desc", page: int = 1, per_page: int = 50, _: str = Depends(verify_auth)):
+    with _connection() as connection:
+        return queries.injury_list(connection, category=_category_or_none(category), country=country,
+                                   position=position, type_name=type_name, ongoing_only=ongoing_only, sort=sort,
+                                   direction=direction, page=page, per_page=per_page)
 
 
 @app.get("/api/player/{player_id}")
@@ -72,12 +89,26 @@ def page_analytics(request: Request, _: str = Depends(verify_auth)):
         return templates.TemplateResponse(request, "analytics.html", {"active": "analytics", "by_position": queries.by_position(connection), "by_age_band": queries.by_age_band(connection), "by_type": queries.by_type(connection), "by_nationality": queries.by_nationality(connection), "by_league": queries.by_league(connection), "by_month": queries.by_month(connection)})
 
 
-@app.get("/injuries", response_class=HTMLResponse)
-def page_injuries(request: Request, country: str | None = None, position: str | None = None,
+@app.get("/injuries")
+def page_injuries_redirect():
+    """Preserved so existing links and bookmarks keep working. 302, not 301:
+    a permanent redirect is cached hard by browsers and hard to walk back."""
+    return RedirectResponse("/absences?category=injury", status_code=302)
+
+
+@app.get("/absences", response_class=HTMLResponse)
+def page_absences(request: Request, category: str = "injury", country: str | None = None, position: str | None = None,
                   type_name: str | None = None, ongoing_only: bool = False, sort: str = "start_date",
                   direction: str = "desc", page: int = 1, _: str = Depends(verify_auth)):
     with _connection() as connection:
-        return templates.TemplateResponse(request, "injuries.html", {"active": "injuries", "result": queries.injury_list(connection, country, position, type_name, ongoing_only, sort, direction, page), "options": queries.filter_options(connection), "filters": {"country": country, "position": position, "type_name": type_name, "ongoing_only": ongoing_only, "sort": sort, "direction": direction}})
+        result = queries.injury_list(connection, category=_category_or_none(category), country=country,
+                                     position=position, type_name=type_name, ongoing_only=ongoing_only,
+                                     sort=sort, direction=direction, page=page)
+        options = queries.filter_options(connection)
+    return templates.TemplateResponse(request, "absences.html", {
+        "active": "absences", "result": result, "options": options,
+        "filters": {"category": category, "country": country, "position": position, "type_name": type_name,
+                    "ongoing_only": ongoing_only, "sort": sort, "direction": direction}})
 
 
 @app.get("/player/{player_id}", response_class=HTMLResponse)

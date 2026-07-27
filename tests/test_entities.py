@@ -72,7 +72,8 @@ def test_capped_lists_report_the_real_total_not_the_page_size(connection, monkey
 
     Team 88 in the real database holds 290 absences; before this, the heading
     read "Absences (50)" because it counted the returned rows. The fixture team
-    has only 3 absences, so the cap is lowered to make truncation happen.
+    has 2 injury-category absences (900, 902), so the cap is lowered to make
+    truncation happen.
     """
     from app import queries
 
@@ -80,7 +81,17 @@ def test_capped_lists_report_the_real_total_not_the_page_size(connection, monkey
     detail = queries.team_detail(connection, 100)
 
     assert len(detail["absences"]) == 1        # truncated, as asked
-    assert detail["absences_total"] == 3       # but the total is still honest
+    assert detail["absences_total"] == 2       # but the total is still honest
+
+
+def test_team_absences_default_to_injury_category(connection):
+    """Team pages used to list every category while league/type pages already
+    filtered to 'injury' — now that the category filter exists, team pages
+    match that default explicitly instead of incidentally showing everything."""
+    from app import queries
+
+    detail = queries.team_detail(connection, 100)
+    assert all(row["category"] == "injury" for row in detail["absences"])
 
 
 def test_type_page_reports_total_players_affected(connection, monkeypatch):

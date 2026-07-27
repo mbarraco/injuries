@@ -104,7 +104,7 @@ def by_month(connection):
 # The source is always a literal from this module, never user input; it is
 # interpolated because a table name cannot be a bound parameter.
 _ABSENCE_PROJECTION = """
-    SELECT injury.id, injury.player_id, injury.start_date, injury.end_date,
+    SELECT injury.id, injury.category, injury.player_id, injury.start_date, injury.end_date,
            injury.duration_days, injury.games_missed, injury.is_ongoing,
            injury.age_at_start, injury.fixture_appearances,
            player.name AS player, player.position,
@@ -126,10 +126,22 @@ _SORTABLE = {"start_date": "injury.start_date", "duration": "injury.duration_day
              "league": "league.name"}
 
 
-def injury_list(connection, country=None, position=None, type_name=None, ongoing_only=False,
+def injury_list(connection, category="injury", country=None, position=None, type_name=None, ongoing_only=False,
                 sort="start_date", direction="desc", page=1, per_page=50):
-    """Filter and paginate records, with a whitelist for interpolated ordering."""
+    """Filter and paginate absence records, with a whitelist for interpolated ordering.
+
+    `category`: "injury" (default — identical to this function's original,
+    injury-only behaviour, so every existing caller is unaffected), a specific
+    category value such as "suspended", or None for every category.
+    """
     conditions, params = [], []
+    if category == "injury":
+        select = _INJURY_SELECT
+    else:
+        select = _ABSENCE_SELECT
+        if category is not None:
+            conditions.append("injury.category = ?")
+            params.append(category)
     for value, column in ((country, "league.country"), (position, "player.position"),
                           (type_name, "injury_type.name")):
         if value:
@@ -138,12 +150,12 @@ def injury_list(connection, country=None, position=None, type_name=None, ongoing
     if ongoing_only:
         conditions.append("injury.is_ongoing = 1")
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    total = connection.execute(f"SELECT COUNT(*) FROM ({_INJURY_SELECT} {where})", params).fetchone()[0]
+    total = connection.execute(f"SELECT COUNT(*) FROM ({select} {where})", params).fetchone()[0]
     page = max(page, 1)
     per_page = min(max(per_page, 1), 200)
     column = _SORTABLE.get(sort, _SORTABLE["start_date"])
     order = "ASC" if direction.lower() == "asc" else "DESC"
-    items = rows(connection, f"{_INJURY_SELECT} {where} ORDER BY {column} {order}, injury.id DESC LIMIT ? OFFSET ?",
+    items = rows(connection, f"{select} {where} ORDER BY {column} {order}, injury.id DESC LIMIT ? OFFSET ?",
                  (*params, per_page, (page - 1) * per_page))
     return {"items": items, "total": total, "page": page, "per_page": per_page}
 
@@ -268,14 +280,19 @@ def team_detail(connection, team_id):
             WHERE player_season.team_id = ? AND season.is_current = 1
             ORDER BY player.name
         """, (team_id,)),
+        # category='injury' to match league_detail and type_detail, which
+        # already filtered this way — previously team pages listed every
+        # category while those two didn't, an inconsistency rather than a
+        # decision. All three now filter identically and explicitly.
         "absences": rows(connection, f"""
-            {_ABSENCE_SELECT}
+            {_INJURY_SELECT}
             WHERE injury.team_id = ? ORDER BY injury.start_date DESC LIMIT ?
         """, (team_id, ABSENCE_LIMIT)),
         # Totals accompany every capped list: a truncated table is fine, but a
         # heading that reports the page size as if it were the total is not.
         # Team 88 holds 290 absences and would otherwise display "(50)".
-        "absences_total": _count(connection, "SELECT COUNT(*) FROM absence WHERE team_id = ?", team_id),
+        "absences_total": _count(
+            connection, "SELECT COUNT(*) FROM absence WHERE team_id = ? AND category = 'injury'", team_id),
         "absences_limit": ABSENCE_LIMIT,
         "transfers_in": rows(connection, """
             SELECT transfer.id, transfer.date, player.id AS player_id, player.name AS player,
