@@ -113,3 +113,31 @@
 {% macro empty_state(message) %}
 <p class="empty">{{ message }}</p>
 {% endmacro %}
+
+{# One coverage grid, any measure or scope. Heat intensity is scaled to the
+   largest value in THIS grid, so rows stay comparable with each other.
+   A season absent from a row's cells renders blank; a season present with
+   value 0 renders "0" — see app/matrix.py, this distinction is the entire
+   point of a coverage view. `drill_kind` is None for a measure/scope with no
+   further dimension to drill into (fixtures has no club scope at all; player
+   scope is always the bottom). #}
+{% macro matrix(data, drill_kind=None) %}
+<div class="table-wrap"><table class="matrix">
+  <thead><tr><th>{{ data.row_label }}</th>
+    {% for season in data.seasons %}<th class="num">{{ season }}</th>{% endfor %}
+    {% if data.unattributed %}<th class="num" title="Records whose season could not be resolved">Unresolved</th>{% endif %}
+    <th class="num">Total</th></tr></thead>
+  <tbody>
+  {% for row in data.rows %}<tr>
+    <td>{% if drill_kind %}<a href="/admin/matrix/{{ data.measure }}/{{ drill_kind }}/{{ row.id }}">{{ row.label }}</a>{% else %}{{ row.label }}{% endif %}</td>
+    {% for season in data.seasons %}
+      {%- set value = row.cells.get(season) -%}
+      <td class="num heat" style="--heat: {{ (value / data.max) if value and data.max else 0 }}">{{ value if value is not none else '' }}</td>
+    {% endfor %}
+    {% if data.unattributed %}<td class="num">{{ row.unattributed or '' }}</td>{% endif %}
+    <td class="num total">{{ '{:,}'.format(row.total) }}</td>
+  </tr>{% endfor %}
+  </tbody>
+</table></div>
+{% if data.unmatched %}<p class="note">{{ '{:,}'.format(data.unmatched) }} {{ data.measure }} could not be matched to any season at all (no roster or window covers them) and are not counted anywhere above.</p>{% endif %}
+{% endmacro %}

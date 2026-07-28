@@ -7,7 +7,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app import auth, db, queries
+from app import auth, db, matrix, queries
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI(title="Injury Data POC")
@@ -213,3 +213,56 @@ def page_type(request: Request, type_id: int, _: str = Depends(verify_auth)):
     if detail is None:
         raise HTTPException(status_code=404, detail="Injury type not found")
     return templates.TemplateResponse(request, "type.html", {"active": "types", **detail})
+
+
+@app.get("/admin", response_class=HTMLResponse)
+def page_admin(request: Request, _: str = Depends(verify_auth)):
+    return templates.TemplateResponse(request, "admin/index.html",
+                                      {"active": "admin", "measures": matrix.MEASURES})
+
+
+@app.get("/admin/matrix/{measure}", response_class=HTMLResponse)
+def page_matrix(request: Request, measure: str, _: str = Depends(verify_auth)):
+    if measure not in matrix.MEASURES:
+        raise HTTPException(status_code=404, detail="Unknown measure")
+    with _connection() as connection:
+        data = matrix.build(connection, measure, scope="league")
+    return templates.TemplateResponse(request, "admin/matrix.html", {
+        "active": "admin", "data": data, "measure_label": matrix.MEASURES[measure].label,
+        "drill_kind": "league" if matrix.MEASURES[measure].supports("club") else None,
+        "breadcrumbs": [{"href": "/admin", "label": "Admin"}, {"label": matrix.MEASURES[measure].label}],
+    })
+
+
+@app.get("/admin/matrix/{measure}/league/{league_id}", response_class=HTMLResponse)
+def page_matrix_league(request: Request, measure: str, league_id: int, _: str = Depends(verify_auth)):
+    if measure not in matrix.MEASURES or not matrix.MEASURES[measure].supports("club"):
+        raise HTTPException(status_code=404, detail="Unknown measure or scope")
+    with _connection() as connection:
+        league = connection.execute("SELECT id, name FROM league WHERE id = ?", (league_id,)).fetchone()
+        if league is None:
+            raise HTTPException(status_code=404, detail="League not found")
+        data = matrix.build(connection, measure, scope="club", scope_id=league_id)
+    return templates.TemplateResponse(request, "admin/matrix.html", {
+        "active": "admin", "data": data, "measure_label": matrix.MEASURES[measure].label, "drill_kind": "team",
+        "breadcrumbs": [{"href": "/admin", "label": "Admin"},
+                        {"href": f"/admin/matrix/{measure}", "label": matrix.MEASURES[measure].label},
+                        {"label": league["name"]}],
+    })
+
+
+@app.get("/admin/matrix/{measure}/team/{team_id}", response_class=HTMLResponse)
+def page_matrix_team(request: Request, measure: str, team_id: int, _: str = Depends(verify_auth)):
+    if measure not in matrix.MEASURES or not matrix.MEASURES[measure].supports("player"):
+        raise HTTPException(status_code=404, detail="Unknown measure or scope")
+    with _connection() as connection:
+        team = connection.execute("SELECT id, name FROM team WHERE id = ?", (team_id,)).fetchone()
+        if team is None:
+            raise HTTPException(status_code=404, detail="Team not found")
+        data = matrix.build(connection, measure, scope="player", scope_id=team_id)
+    return templates.TemplateResponse(request, "admin/matrix.html", {
+        "active": "admin", "data": data, "measure_label": matrix.MEASURES[measure].label, "drill_kind": None,
+        "breadcrumbs": [{"href": "/admin", "label": "Admin"},
+                        {"href": f"/admin/matrix/{measure}", "label": matrix.MEASURES[measure].label},
+                        {"label": team["name"]}],
+    })

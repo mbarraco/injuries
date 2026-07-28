@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}{% block heading %}Coverage matrices{% endblock %}
+{% block subtitle %}What the dataset holds, season by season.{% endblock %}
+{% block content %}
+<section>
+  <p>These tables show how much data has been fetched, not how much football happened. Sidelined coverage climbs
+  from roughly nothing before 2006 to today's density, so a season-over-season change here measures the vendor's
+  backfill, not an injury trend — read as coverage, not as history.</p>
+  <ul class="admin-measures">
+    {% for key, measure in measures.items() %}
+      <li><a href="/admin/matrix/{{ key }}">{{ measure.label }}</a></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

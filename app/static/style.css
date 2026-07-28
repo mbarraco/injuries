@@ -262,3 +262,17 @@ select:focus-visible, [tabindex]:focus-visible {
   table { font-size: 13px; }
   th, td { padding: 7px 10px; }
 }
+
+/* =========================================================================
+   Coverage matrices (/admin) — heat intensity is scaled per-grid in the
+   macro (app/templates/macros.html), not globally, so rows stay comparable
+   with each other without one huge outlier washing out every other cell.
+   ========================================================================= */
+.admin-measures { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.admin-measures a {
+  display: block; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink); font-weight: 600;
+}
+.matrix .heat { background: color-mix(in srgb, var(--accent) calc(var(--heat) * 55%), transparent); }
+.matrix td.total { font-weight: 600; }
+.matrix th:first-child, .matrix td:first-child { position: sticky; left: 0; background: var(--surface); }
