@@ -121,7 +121,7 @@
    point of a coverage view. `drill_kind` is None for a measure/scope with no
    further dimension to drill into (fixtures has no club scope at all; player
    scope is always the bottom). #}
-{% macro matrix(data, drill_kind=None) %}
+{% macro matrix(data, drill_kind=None, cell_detail=False) %}
 <div class="table-wrap"><table class="matrix">
   <thead><tr><th>{{ data.row_label }}</th>
     {% for season in data.seasons %}<th class="num">{{ season }}</th>{% endfor %}
@@ -132,7 +132,13 @@
     <td>{% if drill_kind %}<a href="/admin/matrix/{{ data.measure }}/{{ drill_kind }}/{{ row.id }}">{{ row.label }}</a>{% else %}{{ row.label }}{% endif %}</td>
     {% for season in data.seasons %}
       {%- set value = row.cells.get(season) -%}
-      <td class="num heat" style="--heat: {{ (value / data.max) if value and data.max else 0 }}">{{ value if value is not none else '' }}</td>
+      <td class="num heat" style="--heat: {{ (value / data.max) if value and data.max else 0 }}">
+        {%- if value and cell_detail -%}
+          <a href="/admin/matrix/{{ data.measure }}/player/{{ row.id }}/detail?season={{ season | urlencode }}">{{ value }}</a>
+        {%- else -%}
+          {{ value if value is not none else '' }}
+        {%- endif -%}
+      </td>
     {% endfor %}
     {% if data.unattributed %}<td class="num">{{ row.unattributed or '' }}</td>{% endif %}
     <td class="num total">{{ '{:,}'.format(row.total) }}</td>

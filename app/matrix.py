@@ -145,6 +145,50 @@ _UNMATCHED_PLAYER_SEASONS = """
     SELECT COUNT(*) AS n FROM player_season WHERE season_id NOT IN (SELECT id FROM season)
 """
 
+# The records behind one player x season cell. Filtered by season NAME, not
+# id, to match exactly what the cell itself aggregated (build() pivots on the
+# label so cup and domestic seasons share an axis) — filtering by id could
+# silently miss rows if two ids ever shared a label. Only absences and
+# transfers have individually listable records: a minutes cell is already the
+# atomic number, and fixtures has no player scope to have a cell in at all.
+_ABSENCE_DETAIL = """
+    SELECT absence.id, absence.category, absence.start_date, absence.end_date, absence.games_missed,
+           team.id AS team_id, team.name AS team_name, injury_type.name AS type_name
+    FROM absence
+    JOIN season ON season.id = absence.season_id
+    LEFT JOIN team ON team.id = absence.team_id
+    LEFT JOIN injury_type ON injury_type.id = absence.type_id
+    WHERE absence.player_id = ? AND season.name = ?
+    ORDER BY absence.start_date DESC
+"""
+_TRANSFER_DETAIL = f"""
+    SELECT transfer.id, transfer.date, transfer.type_id, injury_type.name AS transfer_type, transfer.amount,
+           from_team.id AS from_team_id, from_team.name AS from_team_name,
+           to_team.id AS to_team_id, to_team.name AS to_team_name
+    FROM transfer
+    JOIN {_TRANSFER_ROSTER} AS roster ON roster.team_id = transfer.to_team_id
+    JOIN season ON season.id = roster.season_id
+     AND transfer.date BETWEEN season.starting_at AND season.ending_at
+    LEFT JOIN team AS from_team ON from_team.id = transfer.from_team_id
+    LEFT JOIN team AS to_team ON to_team.id = transfer.to_team_id
+    LEFT JOIN injury_type ON injury_type.id = transfer.type_id
+    WHERE transfer.player_id = ? AND season.name = ?
+    ORDER BY transfer.date DESC
+"""
+_CELL_DETAIL = {"absences": _ABSENCE_DETAIL, "transfers": _TRANSFER_DETAIL}
+
+
+def supports_cell_detail(measure):
+    return measure in _CELL_DETAIL
+
+
+def cell_detail(connection, measure, player_id, season):
+    """The underlying records behind one player x season cell."""
+    sql = _CELL_DETAIL.get(measure)
+    if sql is None:
+        raise ValueError(f"{measure!r} has no cell-level detail")
+    return rows(connection, sql, (player_id, season))
+
 
 @dataclass(frozen=True)
 class Measure:

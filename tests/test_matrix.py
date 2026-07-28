@@ -9,6 +9,7 @@ touches two seasons contributing more than one month to either.
 """
 import json
 import sqlite3
+from urllib.parse import quote
 
 import pytest
 
@@ -238,3 +239,75 @@ def test_fixtures_club_scope_route_is_404(client):
     """Not just unlinked — genuinely unreachable, since matrix.build() raises
     for a scope a measure doesn't support."""
     assert client.get("/admin/matrix/fixtures/league/10").status_code == 404
+
+
+# --- cell-level detail ----------------------------------------------------
+
+
+def test_cell_detail_lists_absences_for_player_and_season(connection):
+    records = matrix.cell_detail(connection, "absences", 5001, "2024/2025")
+
+    assert len(records) == 1
+    assert records[0]["category"] == "injury"
+    assert records[0]["team_name"] == "FC Test"
+    assert records[0]["type_name"] == "Knock"
+
+
+def test_cell_detail_unsupported_measure_raises():
+    with pytest.raises(ValueError):
+        matrix.cell_detail(sqlite3.connect(":memory:"), "minutes", 1, "2024/2025")
+
+
+def test_cell_detail_lists_transfers_for_player_and_season(tmp_path, raw_cache_dir, reference_db,
+                                                             seasons_dir, countries_file):
+    players = tmp_path / "cell_transfer_players"
+    players.mkdir()
+    (players / "5001.json").write_text(json.dumps({
+        "id": 5001,
+        "statistics": [{"player_id": 5001, "season_id": 77, "team_id": 100,
+                        "details": [{"type_id": 119, "value": {"total": 944}}]}],
+        "transfers": [{"id": 800, "player_id": 5001, "from_team_id": 200, "to_team_id": 100,
+                       "date": "2024-09-01", "type_id": 219, "amount": 1000000,
+                       "completed": True, "career_ended": False}],
+    }))
+    output = tmp_path / "app.db"
+    etl.build(raw_cache_dir, reference_db, output, players_dir=players,
+              seasons_dir=seasons_dir, countries_file=countries_file)
+    connection = db.connect(output)
+
+    records = matrix.cell_detail(connection, "transfers", 5001, "2024/2025")
+    assert len(records) == 1
+    assert records[0]["from_team_name"] == "FC Rival"
+    assert records[0]["to_team_name"] == "FC Test"
+    assert records[0]["amount"] == 1000000
+
+
+def test_player_scope_cells_link_to_detail(client):
+    """Jinja's `urlencode` filter leaves `/` unescaped in a plain string —
+    fine here, since a query value's `/` doesn't need escaping (the browser
+    and FastAPI's parser both split on `&`/`=`, not `/`)."""
+    body = client.get("/admin/matrix/absences/team/100").text
+    assert 'href="/admin/matrix/absences/player/5001/detail?season=2024/2025"' in body
+
+
+def test_cell_detail_page_shows_the_underlying_records(client):
+    response = client.get("/admin/matrix/absences/player/5001/detail", params={"season": "2024/2025"})
+    assert response.status_code == 200
+    assert "FC Test" in response.text
+
+
+def test_minutes_cells_are_never_linked(client):
+    """Minutes has no cell_detail path — the number in the cell already IS
+    the record; there is nothing further to list."""
+    body = client.get("/admin/matrix/minutes/team/100").text
+    assert "/detail?season=" not in body
+
+
+def test_cell_detail_for_unsupported_measure_is_404(client):
+    assert client.get("/admin/matrix/minutes/player/5001/detail",
+                      params={"season": "2024/2025"}).status_code == 404
+
+
+def test_cell_detail_unknown_player_is_404(client):
+    assert client.get("/admin/matrix/absences/player/999999/detail",
+                      params={"season": "2024/2025"}).status_code == 404

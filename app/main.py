@@ -262,7 +262,27 @@ def page_matrix_team(request: Request, measure: str, team_id: int, _: str = Depe
         data = matrix.build(connection, measure, scope="player", scope_id=team_id)
     return templates.TemplateResponse(request, "admin/matrix.html", {
         "active": "admin", "data": data, "measure_label": matrix.MEASURES[measure].label, "drill_kind": None,
+        "cell_detail": matrix.supports_cell_detail(measure),
         "breadcrumbs": [{"href": "/admin", "label": "Admin"},
                         {"href": f"/admin/matrix/{measure}", "label": matrix.MEASURES[measure].label},
                         {"label": team["name"]}],
+    })
+
+
+@app.get("/admin/matrix/{measure}/player/{player_id}/detail", response_class=HTMLResponse)
+def page_matrix_cell_detail(request: Request, measure: str, player_id: int, season: str,
+                            _: str = Depends(verify_auth)):
+    if not matrix.supports_cell_detail(measure):
+        raise HTTPException(status_code=404, detail="No cell-level detail for this measure")
+    with _connection() as connection:
+        player = connection.execute("SELECT id, name FROM player WHERE id = ?", (player_id,)).fetchone()
+        if player is None:
+            raise HTTPException(status_code=404, detail="Player not found")
+        records = matrix.cell_detail(connection, measure, player_id, season)
+    return templates.TemplateResponse(request, "admin/cell_detail.html", {
+        "active": "admin", "measure": measure, "measure_label": matrix.MEASURES[measure].label,
+        "player": dict(player), "season": season, "records": records,
+        "breadcrumbs": [{"href": "/admin", "label": "Admin"},
+                        {"href": f"/admin/matrix/{measure}", "label": matrix.MEASURES[measure].label},
+                        {"label": player["name"]}, {"label": season}],
     })
