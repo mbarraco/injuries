@@ -52,6 +52,13 @@ def collect_absences(raw_dir, verbose=False):
     # before 2006 at all), so raw yearly counts describe Sportmonks' backfill
     # effort, not football. Measured here so the app can surface the caveat.
     fixtures_by_year, sidelined_by_year = {}, {}
+    # (league_id, season_id) -> [fixtures, non_empty_months]. A club plays its
+    # domestic league AND a UEFA cup in the same period, so a single file can
+    # carry fixtures from more than one season_id — keyed strictly on the pair
+    # so a cup fixture never inflates its domestic sibling's count. Collected
+    # here because this loop already opens every cached file; a second pass
+    # would double the I/O for counts we can get for free.
+    fixture_coverage = {}
     files = sorted(glob.glob(os.path.join(raw_dir, "*.json")))
     for index, path in enumerate(files, 1):
         _tick(verbose, "fixture-months", index, len(files))
@@ -60,10 +67,18 @@ def collect_absences(raw_dir, verbose=False):
         # Filename is {league_id}_{YYYY-MM}.json — the window queried, which is
         # what we want here regardless of individual fixture timestamps.
         year = os.path.basename(path).split("_")[-1][:4]
+        league_id = document.get("league_id")
+        # Keys touched by THIS file, so each contributes at most one month to
+        # a given (league, season) pair even if it holds many fixtures for it.
+        keys_this_file = set()
         for fixture in document.get("fixtures", []):
             fixtures_by_year[year] = fixtures_by_year.get(year, 0) + 1
             sidelined_by_year[year] = (sidelined_by_year.get(year, 0)
                                        + len(fixture.get("sidelined") or []))
+            key = (league_id, fixture.get("season_id"))
+            entry = fixture_coverage.setdefault(key, [0, 0])
+            entry[0] += 1
+            keys_this_file.add(key)
             for pivot in fixture.get("sidelined") or []:
                 sideline = pivot.get("sideline") or {}
                 sideline_id = pivot.get("sideline_id") or sideline.get("id")
@@ -86,8 +101,10 @@ def collect_absences(raw_dir, verbose=False):
                     "completed": sideline.get("completed"),
                     "fixture_appearances": 1,
                 }
+        for key in keys_this_file:
+            fixture_coverage[key][1] += 1
     _say(verbose, f"\n  {len(absences)} distinct absences from {len(files)} files")
-    return absences, len(files), fixtures_by_year, sidelined_by_year
+    return absences, len(files), fixtures_by_year, sidelined_by_year, fixture_coverage
 
 
 def collect_types(reference, types_file):
@@ -313,7 +330,7 @@ def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEF
     build() as a library (tests, the app) stays silent; the CLI turns it on.
     """
     _say(verbose, "[1/5] scanning fixture cache for absences …")
-    absences, file_count, fixtures_by_year, sidelined_by_year = collect_absences(raw_dir, verbose)
+    absences, file_count, fixtures_by_year, sidelined_by_year, fixture_coverage = collect_absences(raw_dir, verbose)
     if os.path.exists(out_db):
         os.remove(out_db)
     connection = sqlite3.connect(out_db)
@@ -335,6 +352,9 @@ def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEF
         league_rows, season_rows = collect_leagues_and_seasons(reference, seasons_dir, countries_file)
         connection.executemany("INSERT OR IGNORE INTO league VALUES (?, ?, ?)", league_rows)
         connection.executemany("INSERT OR IGNORE INTO season VALUES (?, ?, ?, ?, ?, ?)", season_rows)
+        connection.executemany("INSERT INTO fixture_coverage VALUES (?, ?, ?, ?)",
+                               [(league_id, season_id, fixtures, months) for (league_id, season_id),
+                                (fixtures, months) in fixture_coverage.items()])
         connection.executemany("INSERT INTO league_coverage VALUES (?, ?, ?, ?, ?, ?)",
                                [(row[0], row[1], int(row[2]) if row[2] else None, row[3], row[4], row[5])
                                 for row in reference.execute(

@@ -10,6 +10,7 @@ DROP TABLE IF EXISTS injury_type;
 DROP TABLE IF EXISTS season;
 DROP TABLE IF EXISTS league;
 DROP TABLE IF EXISTS league_coverage;
+DROP TABLE IF EXISTS fixture_coverage;
 DROP TABLE IF EXISTS data_quality;
 DROP TABLE IF EXISTS ingest_run;
 
@@ -150,6 +151,21 @@ CREATE TABLE league_coverage (
     year_bucket TEXT,
     record_count INTEGER,
     tier TEXT
+);
+
+-- Fixture counts per league-season, aggregated during the same cache scan
+-- collect_absences already performs — fixtures live only in the raw cache
+-- (9,866 files), never in app.db otherwise, and a second pass would double
+-- the I/O for counts available almost for free.
+-- season_id is deliberately NOT a foreign key: some cached fixtures reference
+-- seasons outside the dimension, and dropping them would understate coverage,
+-- which is the one error these tables must never make.
+CREATE TABLE fixture_coverage (
+    league_id        INTEGER REFERENCES league(id),
+    season_id        INTEGER,
+    fixtures         INTEGER NOT NULL,
+    non_empty_months INTEGER NOT NULL,
+    PRIMARY KEY (league_id, season_id)
 );
 
 CREATE TABLE data_quality (
