@@ -441,6 +441,36 @@ something (note the correction and link back).
   confident "don't bother" verdict after all 5 requests 404'd; it now refuses
   to conclude anything when nothing succeeded.
 
+### Transfers carry far more than dates — and the type ids need a per-id fetch
+- The `transfers` include on a player returns `type_id`, `amount`, `completed`
+  and `career_ended`, not just date and clubs. Four type ids cover every
+  transfer we hold:
+
+  | id | name | rows | with a fee |
+  |---|---|---|---|
+  | 219 | Transfer | 30,635 | 12,331 (40%) |
+  | 220 | Free Transfer | 16,652 | 6 (0.04%) |
+  | 218 | Loan | 15,412 | 1,333 (9%) |
+  | 9688 | End of loan | 14,453 | 0 |
+
+- **"Only 18% of transfers have a fee" is a misleading way to state coverage.**
+  A free transfer *has* no fee and an end-of-loan return has no fee — for
+  30k of the 77k rows the absent amount is the correct value, not a gap. Real
+  fee coverage on actual paid transfers is ~40%. Amounts run €1,000 to
+  €222,000,000 (the Neymar fee, which checks out).
+- **`/core/types` does not list every type id the API returns.** 9688 appeared
+  on 14,453 transfers while being absent from the bulk list; `/core/types/9688`
+  resolves it fine. `ingest/resolve.py` already has this per-id fallback, so
+  the pattern was known — but it only runs for ids referenced by *sidelined*
+  records, which is why transfer types slipped through. Generalised in
+  `scripts/sm_resolve_unknown_types.py`, which scans every referencing table.
+- Lesson: the bulk taxonomy is a starting point, not an authority. Treat an
+  unresolvable id as "ask the API", not "bad data".
+- The shape of those rows (dated 30 June, reversing a prior loan, no fee) made
+  "end of loan" an obvious guess, and the guess turned out right — but it was
+  only recorded once the vendor confirmed it. A plausible label is still a
+  fabricated one until something says so.
+
 ### Open question: is the hourly bucket actually 5,000, not 3,000?
 - Observed `remaining` values across runs: fixture 4,414, player 4,977 /
   4,520 / 2,585, team 4,822 / 4,757 — all well above the **3,000** this log
