@@ -275,3 +275,48 @@ def rates_client(tmp_path, raw_cache_dir, reference_db, rates_players_dir, types
     monkeypatch.setattr("app.db.DB_PATH", str(output))
     from app.main import app
     return TestClient(app, headers={"Authorization": _AUTH_HEADER})
+
+
+@pytest.fixture
+def multi_competition_connection(tmp_path, raw_cache_dir, reference_db, countries_file):
+    """A club that is current in TWO competitions at the same time.
+
+    Real clubs play their domestic league and, if they qualified, a UEFA
+    competition — both seasons flagged is_current. This was impossible to
+    represent before the cups reached the season dimension, which is why an
+    ungrouped squad query listed a player once per competition and went
+    unnoticed. Player 5001 has 944 minutes in the league and 200 in the cup at
+    the same club: one player, one squad row, 1144 minutes.
+
+    Kept separate from `connection` so the extra current season doesn't
+    perturb assertions the other entity tests make about a single season.
+    """
+    seasons = tmp_path / "mc_seasons"
+    seasons.mkdir()
+    (seasons / "10.json").write_text(json.dumps({
+        "id": 10, "name": "Test League", "country_id": 999,
+        "seasons": [{"id": 77, "league_id": 10, "name": "2024/2025", "is_current": True,
+                     "starting_at": "2024-08-16", "ending_at": "2025-05-31"}],
+    }))
+    (seasons / "2.json").write_text(json.dumps({
+        "id": 2, "name": "Champions League", "country_id": 41,
+        "seasons": [{"id": 23619, "league_id": 2, "name": "2024/2025", "is_current": True,
+                     "starting_at": "2024-07-09", "ending_at": "2025-05-31"}],
+    }))
+
+    players = tmp_path / "mc_players"
+    players.mkdir()
+    (players / "5001.json").write_text(json.dumps({
+        "id": 5001,
+        "statistics": [
+            {"player_id": 5001, "season_id": 77, "team_id": 100,
+             "details": [{"type_id": 119, "value": {"total": 944}}]},
+            {"player_id": 5001, "season_id": 23619, "team_id": 100,
+             "details": [{"type_id": 119, "value": {"total": 200}}]},
+        ],
+    }))
+
+    output = tmp_path / "mc.db"
+    etl.build(raw_cache_dir, reference_db, output, players_dir=players,
+              seasons_dir=seasons, countries_file=countries_file)
+    return db.connect(output)

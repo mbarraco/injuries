@@ -132,3 +132,29 @@ def test_team_squad_uses_current_season(connection):
     squad_ids = {row["id"] for row in detail["squad"]}
     assert 5001 in squad_ids   # season 77, is_current
     assert 5003 not in squad_ids  # season 78, higher id but not current
+
+
+def test_squad_lists_each_player_once_across_competitions(multi_competition_connection):
+    """A club current in its league AND a cup must not list a player twice.
+
+    Before the cups reached the season dimension only one season per club was
+    ever current, so an ungrouped query looked correct. Afterwards a real team
+    page read "Squad (12)" while showing 9 people.
+    """
+    from app import queries
+
+    squad = queries.team_detail(multi_competition_connection, 100)["squad"]
+
+    assert len(squad) == 1
+    assert squad[0]["id"] == 5001
+
+
+def test_squad_minutes_sum_across_competitions(multi_competition_connection):
+    """944 in the league plus 200 in the cup is 1144 minutes for one player,
+    and the row says how many competitions the total spans."""
+    from app import queries
+
+    player = queries.team_detail(multi_competition_connection, 100)["squad"][0]
+
+    assert player["minutes_played"] == 1144
+    assert player["competitions"] == 2

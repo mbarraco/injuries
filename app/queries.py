@@ -586,14 +586,24 @@ def team_detail(connection, team_id):
             FROM absence JOIN league ON league.id = absence.league_id
             WHERE absence.team_id = ?
         """, (team_id,)),
+        # One row per PLAYER, not per player-season. A club is current in its
+        # domestic league and in a UEFA cup simultaneously, so `is_current = 1`
+        # matches several seasons for the same club and an ungrouped query
+        # listed a player once per competition — "Squad (12)" for 9 people.
+        # (Impossible before the cups reached the season dimension, which is why
+        # nothing caught it earlier.) Minutes are summed across those
+        # competitions; `competitions` says how many the total spans, so a large
+        # figure is never mistaken for one league's worth.
         "squad": rows(connection, """
             SELECT player.id, player.name, player.position,
-                   player_season.season_id, season.name AS season_name,
-                   player_season.minutes_played
+                   SUM(player_season.minutes_played) AS minutes_played,
+                   COUNT(DISTINCT player_season.season_id) AS competitions,
+                   MAX(season.name) AS season_name
             FROM player_season
             JOIN player ON player.id = player_season.player_id
             JOIN season ON season.id = player_season.season_id
             WHERE player_season.team_id = ? AND season.is_current = 1
+            GROUP BY player.id, player.name, player.position
             ORDER BY player.name
         """, (team_id,)),
         # category='injury' to match league_detail and type_detail, which

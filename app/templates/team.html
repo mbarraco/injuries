@@ -8,8 +8,10 @@
 {% for row in leagues %}<li>{{ macros.entity_link('league', row.id, row.name) }}</li>{% endfor %}
 </ul>{{ macros.empty_state('No league recorded for this team.') if not leagues }}</section>
 
-<section><h2>Squad ({{ squad|length }})</h2><div class="table-wrap"><table><thead><tr><th>Player</th><th>Position</th><th>Season</th><th class="num">Minutes</th></tr></thead><tbody>
-{% for row in squad %}<tr><td>{{ macros.entity_link('player', row.id, row.name) }}</td><td>{{ row.position or '—' }}</td><td>{{ macros.entity_link('season', row.season_id, row.season_name) }}</td><td class="num">{{ row.minutes_played if row.minutes_played is not none else '—' }}</td></tr>{% endfor %}
+<section><h2>Squad ({{ squad|length }})</h2>
+<p class="note">Players with recorded minutes in a current season. A club competes in its league and, if it qualified, in a UEFA competition — minutes here are the total across all of them.</p>
+<div class="table-wrap"><table><thead><tr><th>Player</th><th>Position</th><th class="num">Minutes</th></tr></thead><tbody>
+{% for row in squad %}<tr><td>{{ macros.entity_link('player', row.id, row.name) }}</td><td>{{ row.position or '—' }}</td><td class="num">{{ '{:,}'.format(row.minutes_played) if row.minutes_played is not none else '—' }}{% if row.competitions and row.competitions > 1 %} <span class="muted">(across {{ row.competitions }} competitions)</span>{% endif %}</td></tr>{% endfor %}
 </tbody></table></div>{{ macros.empty_state('No squad data recorded for this team.') if not squad }}</section>
 
 <section>{{ macros.count_heading('Injury rate per 1000 minutes', rates.players|length, rates.total) }}
