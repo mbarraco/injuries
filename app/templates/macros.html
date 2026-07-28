@@ -59,9 +59,9 @@
 {# Why a rate table is empty — "not yet" and "no data" are different states.
    Early in a season players have minutes but none has crossed the floor, which
    is expected rather than missing data. Saying only "no player reached 450
-   minutes" reads as a broken feature: at the time of writing only 12 of 53
-   current seasons have anyone above the floor, because 2026/2027 has barely
-   started. `scope` is a phrase like "for this club this season". #}
+   minutes" reads as a broken feature: most current seasons have nobody above
+   the floor, because 2026/2027 has barely started. `scope` is a phrase like
+   "for this club this season". #}
 {% macro rate_empty_state(rates, scope) %}
   {#- Sentences kept on single lines: wrapping them puts newlines mid-phrase in
       the rendered HTML, which breaks substring assertions and reads oddly in
