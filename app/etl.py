@@ -5,6 +5,7 @@ import glob
 import json
 import os
 import sqlite3
+import time
 from datetime import datetime, timezone
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -36,7 +37,7 @@ def _tick(verbose, label, done, total, every=500):
         print(f"\r  {label} {done}/{total}", end="", flush=True)
 
 
-def collect_absences(raw_dir):
+def collect_absences(raw_dir, verbose=False):
     """Deduplicate fixture appearances into one absence per sideline id.
 
     The fixture feed repeats an absence once for each missed match; sorted
@@ -49,7 +50,8 @@ def collect_absences(raw_dir):
     # effort, not football. Measured here so the app can surface the caveat.
     fixtures_by_year, sidelined_by_year = {}, {}
     files = sorted(glob.glob(os.path.join(raw_dir, "*.json")))
-    for path in files:
+    for index, path in enumerate(files, 1):
+        _tick(verbose, "fixture-months", index, len(files))
         with open(path, encoding="utf-8") as source:
             document = json.load(source)
         # Filename is {league_id}_{YYYY-MM}.json — the window queried, which is
@@ -81,6 +83,7 @@ def collect_absences(raw_dir):
                     "completed": sideline.get("completed"),
                     "fixture_appearances": 1,
                 }
+    _say(verbose, f"\n  {len(absences)} distinct absences from {len(files)} files")
     return absences, len(files), fixtures_by_year, sidelined_by_year
 
 
@@ -90,7 +93,7 @@ def _stat_total(details, type_id):
     return value.get("total") if isinstance(value, dict) else None
 
 
-def collect_player_seasons(players_dir):
+def collect_player_seasons(players_dir, verbose=False):
     """Per-(player, season, team) playing time from the enriched player cache.
 
     Only players re-fetched with include=statistics.details carry a
@@ -99,7 +102,9 @@ def collect_player_seasons(players_dir):
     a partial enrichment run rather than failing.
     """
     rows = []
-    for path in sorted(glob.glob(os.path.join(players_dir, "*.json"))):
+    files = sorted(glob.glob(os.path.join(players_dir, "*.json")))
+    for index, path in enumerate(files, 1):
+        _tick(verbose, "players", index, len(files))
         with open(path, encoding="utf-8") as source:
             player = json.load(source)
         for line in player.get("statistics") or []:
@@ -109,10 +114,11 @@ def collect_player_seasons(players_dir):
                 _stat_total(details, STAT_MINUTES), _stat_total(details, STAT_APPEARANCES),
                 _stat_total(details, STAT_LINEUPS),
             ))
+    _say(verbose, f"\n  {len(rows)} season stat lines")
     return rows
 
 
-def collect_transfers(players_dir):
+def collect_transfers(players_dir, verbose=False):
     """Career transfers from the enriched player cache, deduplicated by id.
 
     Like collect_player_seasons, only players re-fetched with the `transfers`
@@ -120,7 +126,9 @@ def collect_transfers(players_dir):
     run still produces a consistent table.
     """
     by_id = {}
-    for path in sorted(glob.glob(os.path.join(players_dir, "*.json"))):
+    files = sorted(glob.glob(os.path.join(players_dir, "*.json")))
+    for index, path in enumerate(files, 1):
+        _tick(verbose, "players", index, len(files))
         with open(path, encoding="utf-8") as source:
             player = json.load(source)
         for transfer in player.get("transfers") or []:
@@ -133,6 +141,7 @@ def collect_transfers(players_dir):
                 transfer.get("amount"), int(bool(transfer.get("completed"))),
                 int(bool(transfer.get("career_ended"))),
             )
+    _say(verbose, f"\n  {len(by_id)} distinct transfers")
     return list(by_id.values())
 
 
@@ -209,14 +218,18 @@ def _write_quality_metrics(connection, absences, rows, category_counts, file_cou
 
 
 def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEFAULT_OUT_DB,
-          players_dir=None):
+          players_dir=None, verbose=False):
     """Rebuild app.db from cached raw fixtures and resolved reference data.
 
     `players_dir`, when given, is scanned for enriched player JSON to populate
     the `player_season` table (playing time per season). Left None by callers
     that don't need it (e.g. tests), so the player_season table stays empty.
+
+    `verbose` streams per-phase progress to stdout. Off by default so calling
+    build() as a library (tests, the app) stays silent; the CLI turns it on.
     """
-    absences, file_count, fixtures_by_year, sidelined_by_year = collect_absences(raw_dir)
+    _say(verbose, "[1/5] scanning fixture cache for absences …")
+    absences, file_count, fixtures_by_year, sidelined_by_year = collect_absences(raw_dir, verbose)
     if os.path.exists(out_db):
         os.remove(out_db)
     connection = sqlite3.connect(out_db)
@@ -224,6 +237,7 @@ def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEF
         connection.executescript(schema.read())
     reference = sqlite3.connect(f"file:{reference_db}?mode=ro", uri=True)
     try:
+        _say(verbose, "[2/5] loading reference dimensions …")
         players = {int(row[0]): row for row in reference.execute(
             "SELECT id, name, position, detailed_position, nationality, date_of_birth, height_cm, weight_kg FROM sportmonks_player"
         )}
@@ -245,6 +259,10 @@ def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEF
                                 for row in reference.execute(
                                     "SELECT country, league, sportmonks_id, year_bucket, record_count, tier FROM sportmonks_coverage WHERE run_id = 16")])
 
+        _say(verbose, f"  {len(players)} players · "
+                      f"{len(seasons)} seasons loaded into dimensions")
+
+        _say(verbose, "[3/5] deriving absence rows …")
         rows, category_counts = [], {}
         for absence in absences.values():
             category = absence["category"] or "unknown"
@@ -259,8 +277,11 @@ def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEF
             ))
         connection.executemany(
             "INSERT INTO absence VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+        _say(verbose, f"  {len(rows)} absences written · by category: "
+                      f"{dict(sorted(category_counts.items()))}")
 
-        player_seasons = collect_player_seasons(players_dir) if players_dir else []
+        _say(verbose, "[4/5] scanning player cache for season stats …")
+        player_seasons = collect_player_seasons(players_dir, verbose) if players_dir else []
         if player_seasons:
             connection.executemany(
                 "INSERT OR IGNORE INTO player_season VALUES (?, ?, ?, ?, ?, ?)", player_seasons)
@@ -268,7 +289,8 @@ def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEF
                 ("player_season_rows", len(player_seasons), "per-player-season stat lines from enriched cache"),
                 ("players_with_stats", len({row[0] for row in player_seasons}), "distinct players with season stats"),
             ])
-        transfers = collect_transfers(players_dir) if players_dir else []
+        _say(verbose, "[5/5] scanning player cache for transfers …")
+        transfers = collect_transfers(players_dir, verbose) if players_dir else []
         if transfers:
             connection.executemany(
                 "INSERT OR IGNORE INTO transfer VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", transfers)
@@ -279,6 +301,7 @@ def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEF
         connection.execute("INSERT INTO ingest_run (run_at, source_file_count, notes) VALUES (?, ?, ?)",
                            (datetime.now(timezone.utc).isoformat(timespec="seconds"), file_count,
                             "rebuilt from raw cache"))
+        _say(verbose, "  writing quality metrics and committing …")
         connection.commit()
         injuries = category_counts.get("injury", 0)
         return {"absences": len(rows), "injuries": injuries, "categories": category_counts,
@@ -289,9 +312,10 @@ def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEF
 
 
 if __name__ == "__main__":
-    result = build(players_dir=DEFAULT_PLAYERS_DIR)
-    print(f"absences loaded: {result['absences']} (injuries: {result['injuries']})")
+    started = time.monotonic()
+    result = build(players_dir=DEFAULT_PLAYERS_DIR, verbose=True)
+    print(f"\nabsences loaded: {result['absences']} (injuries: {result['injuries']})")
     print(f"by category: {result['categories']}")
     print(f"player-season stat rows: {result['player_seasons']}")
     print(f"transfer rows: {result['transfers']}")
-    print(f"-> {DEFAULT_OUT_DB}")
+    print(f"-> {DEFAULT_OUT_DB}  ({time.monotonic() - started:.1f}s)")
