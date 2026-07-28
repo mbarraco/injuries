@@ -62,3 +62,17 @@ def test_players_index_reports_the_real_total_when_capped(connection, monkeypatc
 
     assert len(result["players"]) == 1
     assert result["total"] == 2  # 5001 and 5003 are the fixture's players
+
+
+def test_persistent_nav_links_every_entity_index(client):
+    """Players/Teams/Leagues/Seasons/Types had detail pages since Slice B but
+    no entry in the sidebar nav — reachable only via search or by drilling in
+    from another page. The nav lives in base.html, so any page proves it;
+    /absences is used here specifically because it is NOT the dashboard,
+    ruling out a page-specific link standing in for real nav.
+    """
+    response = client.get("/absences")
+
+    for href in ("/", "/absences", "/analytics", "/players", "/teams",
+                 "/leagues", "/seasons", "/types", "/coverage"):
+        assert f'href="{href}"' in response.text, f"nav does not link to {href}"

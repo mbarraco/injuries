@@ -649,6 +649,16 @@ def types_index(connection):
     """)
 
 
+def _escape_like(text):
+    """Escape LIKE's own wildcards so a literal query is matched literally.
+
+    `%` and `_` mean something to LIKE itself; unescaped, searching for
+    "Barça_FC" would match "BarçaXFC" too, and a query containing `%` would
+    match everything. Pairs with `ESCAPE '\\'` in the calling SQL.
+    """
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def search(connection, query, per_kind=8):
     """Prefix search across players, teams and leagues, for the global search box.
 
@@ -659,12 +669,12 @@ def search(connection, query, per_kind=8):
     """
     if not query or len(query.strip()) < 2:
         return []
-    like = f"{query.strip()}%"
+    like = f"{_escape_like(query.strip())}%"
     results = []
     for kind, sql in (
-        ("player", "SELECT id, name FROM player WHERE name LIKE ? COLLATE NOCASE ORDER BY name LIMIT ?"),
-        ("team",   "SELECT id, name FROM team   WHERE name LIKE ? COLLATE NOCASE ORDER BY name LIMIT ?"),
-        ("league", "SELECT id, name FROM league WHERE name LIKE ? COLLATE NOCASE ORDER BY name LIMIT ?"),
+        ("player", "SELECT id, name FROM player WHERE name LIKE ? ESCAPE '\\' COLLATE NOCASE ORDER BY name LIMIT ?"),
+        ("team",   "SELECT id, name FROM team   WHERE name LIKE ? ESCAPE '\\' COLLATE NOCASE ORDER BY name LIMIT ?"),
+        ("league", "SELECT id, name FROM league WHERE name LIKE ? ESCAPE '\\' COLLATE NOCASE ORDER BY name LIMIT ?"),
     ):
         results.extend({**row, "kind": kind} for row in rows(connection, sql, (like, per_kind)))
     return results

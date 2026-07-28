@@ -7,21 +7,58 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+  <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-hidden="true">
+  <label for="nav-toggle" class="nav-toggle-label" aria-label="Toggle navigation">☰</label>
+
   <nav class="sidebar">
-    <div class="brand"><span class="brand-mark">◆</span><div><strong>Injury Data</strong><small>Sportmonks · UEFA</small></div></div>
-    <div class="global-search">
-      <input type="search" name="q" placeholder="Search players, teams, leagues…" autocomplete="off"
-             hx-get="/search" hx-trigger="keyup changed delay:200ms, search" hx-target="#search-results">
-      <div id="search-results"></div>
+    <div class="brand">
+      <span class="brand-mark">◆</span>
+      <div><strong>Injury Data</strong><small>Sportmonks · UEFA</small></div>
     </div>
-    <a href="/" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
-    <a href="/analytics" class="{{ 'active' if active == 'analytics' else '' }}">Analytics</a>
-    <a href="/absences" class="{{ 'active' if active == 'absences' else '' }}">Absences</a>
-    <a href="/seasons" class="{{ 'active' if active == 'seasons' else '' }}">Seasons</a>
-    <a href="/coverage" class="{{ 'active' if active == 'coverage' else '' }}">Coverage &amp; Quality</a>
+
+    {# A plain <form> so pressing Enter still works with JavaScript disabled —
+       it submits to /search, which renders a full page (see main.py:page_search).
+       htmx progressively enhances the same input with a live dropdown. #}
+    <form class="global-search" action="/search" method="get" role="search">
+      <input type="search" name="q" autocomplete="off"
+             placeholder="Search players, teams, leagues…"
+             hx-get="/search" hx-trigger="keyup changed delay:200ms, search"
+             hx-target="#search-results">
+      <div id="search-results" class="search-dropdown"></div>
+    </form>
+
+    <div class="nav-group">
+      <a href="/" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
+      <a href="/absences" class="{{ 'active' if active == 'absences' else '' }}">Absences</a>
+      <a href="/analytics" class="{{ 'active' if active == 'analytics' else '' }}">Analytics</a>
+    </div>
+
+    {# Players/Teams/Leagues/Types have had detail pages since Slice B, but no
+       primary nav entry — reachable only via search or by drilling in from
+       another page. #}
+    <div class="nav-group">
+      <a href="/players" class="{{ 'active' if active == 'players' else '' }}">Players</a>
+      <a href="/teams" class="{{ 'active' if active == 'teams' else '' }}">Teams</a>
+      <a href="/leagues" class="{{ 'active' if active == 'leagues' else '' }}">Leagues</a>
+      <a href="/seasons" class="{{ 'active' if active == 'seasons' else '' }}">Seasons</a>
+      <a href="/types" class="{{ 'active' if active == 'types' else '' }}">Injury types</a>
+    </div>
+
+    <div class="nav-group">
+      <a href="/coverage" class="{{ 'active' if active == 'coverage' else '' }}">Coverage &amp; Quality</a>
+    </div>
+
     <div class="sidebar-foot"><a href="/docs">API docs →</a></div>
   </nav>
-  <main><header class="page-head"><h1>{% block heading %}{% endblock %}</h1><p class="subtitle">{% block subtitle %}{% endblock %}</p></header>{% block content %}{% endblock %}</main>
+
+  <main>
+    <header class="page-head">
+      <h1>{% block heading %}{% endblock %}</h1>
+      <p class="subtitle">{% block subtitle %}{% endblock %}</p>
+    </header>
+    {% block content %}{% endblock %}
+  </main>
+
   <script src="/static/chart.min.js"></script>
   <script src="/static/htmx.min.js"></script>
   {% block scripts %}{% endblock %}

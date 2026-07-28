@@ -85,11 +85,19 @@ def api_search(q: str = "", _: str = Depends(verify_auth)):
 
 @app.get("/search", response_class=HTMLResponse)
 def page_search(request: Request, q: str = "", _: str = Depends(verify_auth)):
-    """The htmx fragment behind the header search box. Not part of the JSON
-    API — external callers should use /api/search instead."""
+    """Backs the header search box AND works as a real page.
+
+    htmx marks its own requests with the HX-Request header, so that header is
+    what distinguishes the two callers: htmx gets the bare results fragment it
+    already swaps in, while a plain form submit (no JavaScript) or a shared
+    /search?q= link gets a full page with the same results. Without this split,
+    the search box only worked with JavaScript enabled.
+    """
     with _connection() as connection:
         results = queries.search(connection, q)
-    return templates.TemplateResponse(request, "partials/search_results.html", {"results": results})
+    if request.headers.get("HX-Request") == "true":
+        return templates.TemplateResponse(request, "partials/search_results.html", {"results": results})
+    return templates.TemplateResponse(request, "search.html", {"active": "search", "results": results, "query": q})
 
 
 @app.get("/", response_class=HTMLResponse)

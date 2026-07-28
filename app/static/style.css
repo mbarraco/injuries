@@ -1,1 +1,264 @@
-:root{--bg:#f6f7f9;--surface:#fff;--ink:#14181f;--soft:#5b6472;--line:#e3e7ec;--accent:#2f6df6;--good:#1a9d63;--warn:#c9880f;--side:#161b24;--radius:10px}*{box-sizing:border-box}body{margin:0;display:flex;min-height:100vh;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.sidebar{width:232px;flex-shrink:0;background:var(--side);padding:22px 14px;display:flex;flex-direction:column;gap:4px}.brand{display:flex;gap:10px;align-items:center;padding:0 10px 22px;color:#fff}.brand-mark{color:var(--accent);font-size:20px}.brand small{display:block;color:#7d879a;font-size:11px;text-transform:uppercase}.sidebar a{color:#c8cfdb;text-decoration:none;padding:9px 12px;border-radius:7px}.sidebar a:hover{background:#222a36;color:#fff}.sidebar .active{background:var(--accent);color:#fff;font-weight:600}.sidebar-foot{margin-top:auto;padding-top:16px;border-top:1px solid #262e3a}.sidebar-foot a{font-size:12px;color:#7d879a}main{flex:1;max-width:1400px;padding:34px 40px 60px}.page-head{margin-bottom:26px}.page-head h1{margin:0 0 4px;font-size:26px}.subtitle{margin:0;color:var(--soft)}section{margin-bottom:34px}section>h2{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin:0 0 12px}.card,.chart-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}.intro{margin-top:0;color:var(--soft)}.stat-row{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}.value{font-size:27px;font-weight:650}.label,th{font-size:11px;color:var(--soft);text-transform:uppercase;letter-spacing:.05em}.funnel{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.funnel-step{flex:1;min-width:150px;background:#eaf1fe;border-radius:var(--radius);padding:14px 16px}.funnel-step.final{background:#e6f6ee}.funnel-step .n{font-size:22px;font-weight:650}.funnel-step .t{font-size:12px;color:var(--soft)}.table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:9px 14px;text-align:left;border-bottom:1px solid var(--line)}th{background:#fbfcfd;white-space:nowrap}tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:#fafbfc}.num{text-align:right;font-variant-numeric:tabular-nums}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;text-transform:uppercase}.pill.rich{background:#e6f6ee;color:var(--good)}.pill.moderate{background:#eaf1fe;color:var(--accent)}.pill.thin,.pill.ongoing{background:#fdf3e0;color:var(--warn)}.gaps{border-left:3px solid var(--warn);background:#fffdf7}.gaps li{margin:6px 0;color:#4a5261}.chart-grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}.chart-card h3{margin:0}.chart-card p{margin:0 0 12px;font-size:12px;color:var(--soft)}.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}.filters label{display:block;margin-bottom:4px;font-size:11px;color:var(--soft);text-transform:uppercase}.filters select,.filters button{padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface);font-size:14px}.filters button{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}.filters .check{display:flex;gap:6px;align-items:center;padding-bottom:8px}.filters .check label{margin:0}.pager{display:flex;gap:10px;align-items:center;margin-top:14px;color:var(--soft)}.pager a{padding:6px 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface)}@media(max-width:860px){body{flex-direction:column}.sidebar{width:100%;flex-direction:row;flex-wrap:wrap;align-items:center}.sidebar-foot{margin:0;border:0}main{padding:22px 18px 50px}}
+/* =========================================================================
+   Tokens — light by default; overridden by an explicit toggle
+   (:root[data-theme]) or the OS preference, whichever applies.
+   ========================================================================= */
+:root {
+  --bg: #f6f7f9;
+  --surface: #fff;
+  --surface-alt: #fbfcfd;
+  --ink: #14181f;
+  --soft: #5b6472;
+  --line: #e3e7ec;
+  --accent: #2f6df6;
+  --accent-ink: #fff;
+  --good: #1a9d63;
+  --good-bg: #e6f6ee;
+  --warn: #c9880f;
+  --warn-bg: #fdf3e0;
+  --accent-bg: #eaf1fe;
+  --side: #161b24;
+  --side-ink: #c8cfdb;
+  --side-hover: #222a36;
+  --side-line: #262e3a;
+  --radius: 10px;
+  --radius-sm: 7px;
+  --gap: 14px;
+  --focus-ring: 0 0 0 3px rgba(47, 109, 246, .45);
+}
+
+:root[data-theme="dark"] {
+  --bg: #0f1115; --surface: #171a21; --surface-alt: #1c2029; --ink: #e7eaf0;
+  --soft: #9aa4b5; --line: #2a2f3a; --accent: #5b8dff; --accent-ink: #0b1020;
+  --good: #35c087; --good-bg: #113022; --warn: #e0a83a; --warn-bg: #352a12;
+  --accent-bg: #172242; --side: #0b0d12; --side-ink: #aab3c5;
+  --side-hover: #171b22; --side-line: #1f2430;
+}
+@media (prefers-color-scheme: dark) {
+  /* :not([data-theme="light"]) lets an explicit light toggle still win over
+     a dark OS preference. */
+  :root:not([data-theme="light"]) {
+    --bg: #0f1115; --surface: #171a21; --surface-alt: #1c2029; --ink: #e7eaf0;
+    --soft: #9aa4b5; --line: #2a2f3a; --accent: #5b8dff; --accent-ink: #0b1020;
+    --good: #35c087; --good-bg: #113022; --warn: #e0a83a; --warn-bg: #352a12;
+    --accent-bg: #172242; --side: #0b0d12; --side-ink: #aab3c5;
+    --side-hover: #171b22; --side-line: #1f2430;
+  }
+}
+
+/* =========================================================================
+   Reset & layout
+   ========================================================================= */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+main {
+  flex: 1;
+  min-width: 0; /* lets wide tables shrink instead of blowing out the layout */
+  max-width: 1400px;
+  padding: 34px 40px 60px;
+}
+.page-head { margin-bottom: 26px; }
+.page-head h1 { margin: 0 0 4px; font-size: 26px; }
+.subtitle { margin: 0; color: var(--soft); }
+section { margin-bottom: 34px; }
+section > h2 {
+  font-size: 13px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--soft); margin: 0 0 12px;
+}
+
+/* Mobile nav toggle: a hidden checkbox + label, pure CSS, no JS. */
+.nav-toggle, .nav-toggle-label { display: none; }
+
+/* =========================================================================
+   Sidebar
+   ========================================================================= */
+.sidebar {
+  width: 232px; flex-shrink: 0;
+  background: var(--side);
+  padding: 22px 14px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.brand { display: flex; gap: 10px; align-items: center; padding: 0 10px 22px; color: #fff; }
+.brand-mark { color: var(--accent); font-size: 20px; }
+.brand small { display: block; color: #7d879a; font-size: 11px; text-transform: uppercase; }
+
+.nav-group {
+  display: flex; flex-direction: column; gap: 2px;
+  padding-bottom: 10px; margin-bottom: 10px;
+  border-bottom: 1px solid var(--side-line);
+}
+.nav-group:last-of-type { border-bottom: none; }
+
+.sidebar a {
+  color: var(--side-ink); text-decoration: none;
+  padding: 9px 12px; border-radius: var(--radius-sm);
+}
+.sidebar a:hover { background: var(--side-hover); color: #fff; }
+.sidebar .active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.sidebar-foot { margin-top: auto; padding-top: 16px; }
+.sidebar-foot a { font-size: 12px; color: #7d879a; }
+
+/* =========================================================================
+   Global search
+   ========================================================================= */
+.global-search { position: relative; padding: 0 10px 16px; }
+.global-search input {
+  width: 100%; padding: 8px 10px;
+  border: 1px solid var(--side-line); border-radius: var(--radius-sm);
+  background: var(--side-hover); color: #fff; font-size: 13px;
+}
+.global-search input::placeholder { color: #7d879a; }
+.search-dropdown:empty { display: none; }
+.search-dropdown {
+  position: absolute; left: 10px; right: 10px; top: calc(100% - 12px);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 12px 28px rgba(0,0,0,.28);
+  z-index: 20; max-height: 320px; overflow-y: auto;
+}
+.search-results { list-style: none; margin: 0; padding: 6px; }
+.search-results li { padding: 6px 8px; display: flex; gap: 8px; align-items: center; }
+.search-results li:hover { background: var(--surface-alt); border-radius: var(--radius-sm); }
+.search-results .kind {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--soft); border: 1px solid var(--line); border-radius: 999px;
+  padding: 1px 6px; flex-shrink: 0;
+}
+
+/* =========================================================================
+   Cards, stats, tables — shared surfaces
+   ========================================================================= */
+.card, .chart-card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 18px 20px;
+}
+.intro { margin-top: 0; color: var(--soft); }
+.note { font-size: 12px; color: var(--soft); }
+.muted { color: var(--soft); }
+
+.stat-row { display: grid; gap: var(--gap); grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.stat {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px 18px;
+}
+.stat a { display: block; color: inherit; text-decoration: none; }
+.stat a:hover .value { color: var(--accent); }
+.value { font-size: 27px; font-weight: 650; }
+.label, th { font-size: 11px; color: var(--soft); text-transform: uppercase; letter-spacing: .05em; }
+.count { font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--soft); }
+
+.funnel { display: flex; align-items: center; gap: var(--gap); flex-wrap: wrap; }
+.funnel-step { flex: 1; min-width: 150px; background: var(--accent-bg); border-radius: var(--radius); padding: 14px 16px; }
+.funnel-step.final { background: var(--good-bg); }
+.funnel-step .n { font-size: 22px; font-weight: 650; }
+.funnel-step .t { font-size: 12px; color: var(--soft); }
+
+.banner { border-left: 3px solid var(--warn); background: var(--warn-bg); }
+.banner p { margin: 0; }
+
+.table-wrap {
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+}
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 9px 14px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { background: var(--surface-alt); }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: var(--surface-alt); }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.empty { color: var(--soft); padding: 4px 0; }
+
+/* =========================================================================
+   Links, entity references, pills
+   ========================================================================= */
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.entity-link { color: var(--accent); }
+.entity-unresolved {
+  color: var(--soft); border-bottom: 1px dotted var(--soft);
+  cursor: help; text-decoration: none;
+}
+
+.pill {
+  display: inline-block; padding: 2px 9px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  background: var(--accent-bg); color: var(--accent);
+}
+.pill.rich { background: var(--good-bg); color: var(--good); }
+.pill.moderate { background: var(--accent-bg); color: var(--accent); }
+.pill.thin, .pill.ongoing { background: var(--warn-bg); color: var(--warn); }
+
+.gaps { border-left: 3px solid var(--warn); background: var(--warn-bg); }
+.gaps li { margin: 6px 0; color: var(--ink); }
+
+/* =========================================================================
+   Breadcrumbs
+   ========================================================================= */
+.breadcrumbs { font-size: 13px; color: var(--soft); margin-bottom: 18px; }
+.breadcrumbs a { color: var(--soft); }
+.breadcrumbs a:hover { color: var(--accent); }
+.breadcrumbs .sep { margin: 0 6px; color: var(--line); }
+.breadcrumbs [aria-current="page"] { color: var(--ink); font-weight: 600; }
+
+/* =========================================================================
+   Charts / analytics
+   ========================================================================= */
+.chart-grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.chart-card h3 { margin: 0; }
+.chart-card p { margin: 0 0 12px; font-size: 12px; color: var(--soft); }
+
+/* =========================================================================
+   Forms & filters
+   ========================================================================= */
+.filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.filters label { display: block; margin-bottom: 4px; font-size: 11px; color: var(--soft); text-transform: uppercase; }
+.filters select, .filters input, .filters button {
+  padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink); font-size: 14px;
+}
+.filters button { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; cursor: pointer; }
+.filters .check { display: flex; gap: 6px; align-items: center; padding-bottom: 8px; }
+.filters .check label { margin: 0; text-transform: none; font-size: 14px; }
+
+.pager { display: flex; gap: 10px; align-items: center; margin-top: 14px; color: var(--soft); }
+.pager a { padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+
+/* =========================================================================
+   Focus visibility — every interactive element gets a visible ring, so
+   keyboard navigation is actually usable and not just mouse hover.
+   ========================================================================= */
+a:focus-visible, button:focus-visible, input:focus-visible,
+select:focus-visible, [tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+/* =========================================================================
+   Responsive
+   ========================================================================= */
+@media (max-width: 860px) {
+  .nav-toggle-label {
+    display: block; position: fixed; top: 14px; left: 14px; z-index: 30;
+    width: 40px; height: 40px; line-height: 40px; text-align: center;
+    background: var(--side); color: #fff; border-radius: var(--radius-sm);
+    cursor: pointer; font-size: 18px;
+  }
+  body { flex-direction: column; }
+  .sidebar {
+    position: fixed; inset: 0 30% 0 0; z-index: 25;
+    width: auto; max-width: 300px;
+    transform: translateX(-100%);
+    transition: transform .18s ease-out;
+    overflow-y: auto;
+  }
+  .nav-toggle:checked ~ .sidebar { transform: translateX(0); box-shadow: 0 0 0 100vmax rgba(0,0,0,.4); }
+  main { padding: 70px 18px 50px; }
+  table { font-size: 13px; }
+  th, td { padding: 7px 10px; }
+}
