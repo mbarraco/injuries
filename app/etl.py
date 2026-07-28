@@ -19,6 +19,23 @@ SCHEMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.s
 STAT_MINUTES, STAT_APPEARANCES, STAT_LINEUPS = 119, 321, 322
 
 
+def _say(verbose, message):
+    """Phase header. No-op unless verbose, so library callers stay silent."""
+    if verbose:
+        print(message, flush=True)
+
+
+def _tick(verbose, label, done, total, every=500):
+    """In-place progress counter, same style as the ingest runners.
+
+    Printed every `every` items rather than per item: the scans read tens of
+    thousands of small files, and a write per file costs more than the work
+    being reported on.
+    """
+    if verbose and (done % every == 0 or done == total):
+        print(f"\r  {label} {done}/{total}", end="", flush=True)
+
+
 def collect_absences(raw_dir):
     """Deduplicate fixture appearances into one absence per sideline id.
 
