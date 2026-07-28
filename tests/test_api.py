@@ -12,7 +12,9 @@ def test_api_injuries_filters_ongoing(client):
 
 
 @pytest.mark.parametrize("path, content", [
-    ("/", "Coverage &amp; Data Quality"),
+    # Coverage moved off "/" — good POC landing page, poor product homepage.
+    ("/", "Dashboard"),
+    ("/coverage", "Coverage &amp; Data Quality"),
     ("/analytics", "Injuries by position"),
     ("/absences", "Absences"),
     ("/player/5001", "A. Player"),

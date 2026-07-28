@@ -93,9 +93,18 @@ def page_search(request: Request, q: str = "", _: str = Depends(verify_auth)):
 
 
 @app.get("/", response_class=HTMLResponse)
+def page_dashboard(request: Request, _: str = Depends(verify_auth)):
+    """The landing page: a summary of every view, each panel linking into it.
+    Coverage kept this slot as a POC; it now lives at /coverage."""
+    with _connection() as connection:
+        return templates.TemplateResponse(request, "dashboard.html",
+                                          {"active": "dashboard", **queries.dashboard(connection)})
+
+
+@app.get("/coverage", response_class=HTMLResponse)
 def page_coverage(request: Request, _: str = Depends(verify_auth)):
     with _connection() as connection:
-        return templates.TemplateResponse(request, "coverage.html", {"active": "coverage", "overview": queries.overview(connection), "quality": queries.quality_metrics(connection), "coverage": queries.coverage_by_league(connection)})
+        return templates.TemplateResponse(request, "coverage.html", {"active": "coverage", "overview": queries.overview(connection), "quality": queries.quality_metrics(connection), "coverage": queries.coverage_totals(connection), "ramp": queries.coverage_ramp(connection)})
 
 
 @app.get("/analytics", response_class=HTMLResponse)
@@ -124,6 +133,12 @@ def page_absences(request: Request, category: str = "injury", country: str | Non
         "active": "absences", "result": result, "options": options,
         "filters": {"category": category, "country": country, "position": position, "type_name": type_name,
                     "ongoing_only": ongoing_only, "sort": sort, "direction": direction}})
+
+
+@app.get("/players", response_class=HTMLResponse)
+def page_players(request: Request, _: str = Depends(verify_auth)):
+    with _connection() as connection:
+        return templates.TemplateResponse(request, "players.html", {"active": "players", **queries.players_index(connection)})
 
 
 @app.get("/player/{player_id}", response_class=HTMLResponse)

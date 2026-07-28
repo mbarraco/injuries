@@ -35,6 +35,110 @@ def coverage_by_league(connection):
     """)
 
 
+def coverage_ramp(connection):
+    """The `coverage_<year>` metrics as a series: sidelined rows per fixture, by year.
+
+    This ramp — 0.00 before 2006 to roughly 4 today — is the vendor's backfill
+    improving, so it is charted as the caveat behind every year-spanning number
+    rather than left as opaque rows in the metrics table.
+
+    Escaped LIKE because `_` is itself a LIKE wildcard: a bare 'coverage_%'
+    would also match a future metric called 'coverageXanything'.
+    """
+    return rows(connection, r"""
+        SELECT CAST(SUBSTR(metric, 10) AS INTEGER) AS year,
+               value AS per_fixture, detail
+        FROM data_quality
+        WHERE metric LIKE 'coverage\_%' ESCAPE '\'
+        ORDER BY year
+    """)
+
+
+def coverage_totals(connection):
+    """Records and span per competition.
+
+    Replaces the Year 1 / Year 2 / Year 3 pivot: that shape encoded a 3-year
+    model and cannot describe 62 competitions whose depths differ by design —
+    domestic leagues expose exactly 3 seasons, UEFA cups reach back to 2000.
+    Depth is reported as the bucket span each competition actually has.
+    """
+    return rows(connection, """
+        SELECT lc.country, lc.league, lc.league_id,
+               SUM(lc.record_count) AS records, COUNT(*) AS buckets,
+               MIN(lc.year_bucket) AS first_bucket, MAX(lc.year_bucket) AS last_bucket,
+               (SELECT tier FROM league_coverage AS latest
+                 WHERE latest.league_id = lc.league_id
+                 ORDER BY latest.year_bucket DESC LIMIT 1) AS tier
+        FROM league_coverage AS lc
+        GROUP BY lc.country, lc.league, lc.league_id
+        ORDER BY records DESC, lc.league
+    """)
+
+
+DASHBOARD_TOP = 5
+
+
+def dashboard(connection, top=DASHBOARD_TOP):
+    """Headline totals plus the top rows of every view, for the landing page.
+
+    Dedicated LIMITed statements rather than slicing the index queries: those
+    aggregate over all 867 teams and 62 leagues to render a full page, which is
+    wasted work when five rows are wanted. Ids travel with every row so the
+    dashboard can link into the graph rather than print dead text.
+    """
+    totals = dict(connection.execute("""
+        SELECT (SELECT COUNT(*) FROM absence) AS absences,
+               (SELECT COUNT(*) FROM injury) AS injuries,
+               (SELECT COUNT(*) FROM injury WHERE is_ongoing = 1) AS ongoing,
+               (SELECT COUNT(*) FROM player) AS players,
+               (SELECT COUNT(*) FROM team) AS teams,
+               (SELECT COUNT(*) FROM league) AS leagues,
+               (SELECT COUNT(*) FROM season) AS seasons,
+               (SELECT COUNT(*) FROM injury_type) AS types
+    """).fetchone())
+    return {
+        "totals": totals,
+        "recent": rows(connection, f"""
+            {_INJURY_SELECT} ORDER BY injury.start_date DESC, injury.id DESC LIMIT ?
+        """, (top,)),
+        "players": rows(connection, """
+            SELECT player.id, player.name, COUNT(*) AS injuries,
+                   (SELECT SUM(minutes_played) FROM player_season
+                     WHERE player_season.player_id = player.id) AS minutes
+            FROM injury JOIN player ON player.id = injury.player_id
+            GROUP BY player.id, player.name
+            ORDER BY injuries DESC, player.name LIMIT ?
+        """, (top,)),
+        "teams": rows(connection, """
+            SELECT team.id, team.name, COUNT(*) AS injuries
+            FROM injury JOIN team ON team.id = injury.team_id
+            GROUP BY team.id, team.name ORDER BY injuries DESC, team.name LIMIT ?
+        """, (top,)),
+        "leagues": rows(connection, """
+            SELECT league.id, league.name, league.country, COUNT(*) AS injuries
+            FROM injury JOIN league ON league.id = injury.league_id
+            GROUP BY league.id, league.name, league.country
+            ORDER BY injuries DESC, league.name LIMIT ?
+        """, (top,)),
+        "types": rows(connection, """
+            SELECT injury_type.id, injury_type.name, COUNT(*) AS injuries,
+                   ROUND(AVG(injury.duration_days), 1) AS avg_days
+            FROM injury JOIN injury_type ON injury_type.id = injury.type_id
+            GROUP BY injury_type.id, injury_type.name ORDER BY injuries DESC LIMIT ?
+        """, (top,)),
+        "seasons": rows(connection, """
+            SELECT season.id, season.name, season.is_current,
+                   league.id AS league_id, league.name AS league_name,
+                   COUNT(injury.id) AS injuries
+            FROM season
+            JOIN league ON league.id = season.league_id
+            LEFT JOIN injury ON injury.season_id = season.id
+            GROUP BY season.id, season.name, season.is_current, league.id, league.name
+            ORDER BY season.is_current DESC, injuries DESC LIMIT ?
+        """, (top,)),
+    }
+
+
 def by_position(connection):
     return rows(connection, """
         SELECT COALESCE(player.position, 'Unknown') AS position, COUNT(*) AS injuries,
@@ -62,12 +166,19 @@ def by_age_band(connection):
 
 
 def by_type(connection, limit=15):
+    """Severity profile per injury type.
+
+    Carries `type_id` so each analytics row can link to its type page, and
+    groups by that id rather than the name alone — two types sharing a name
+    would otherwise merge into one row that no single page can represent.
+    """
     return rows(connection, """
-        SELECT COALESCE(injury_type.name, 'Unknown') AS type, COUNT(*) AS injuries,
+        SELECT injury_type.id AS type_id,
+               COALESCE(injury_type.name, 'Unknown') AS type, COUNT(*) AS injuries,
                ROUND(AVG(injury.duration_days), 1) AS avg_duration,
                ROUND(AVG(injury.games_missed), 1) AS avg_games_missed
         FROM injury LEFT JOIN injury_type ON injury_type.id = injury.type_id
-        GROUP BY type ORDER BY injuries DESC, type LIMIT ?
+        GROUP BY injury_type.id, type ORDER BY injuries DESC, type LIMIT ?
     """, (limit,))
 
 
@@ -80,12 +191,15 @@ def by_nationality(connection, limit=15):
 
 
 def by_league(connection):
+    """Injury counts per competition, carrying `league_id` so each row links to
+    its league page. Grouped by the id for the same reason as by_type."""
     return rows(connection, """
-        SELECT COALESCE(league.country, 'Unknown') AS country,
+        SELECT league.id AS league_id,
+               COALESCE(league.country, 'Unknown') AS country,
                COALESCE(league.name, 'Unknown') AS league, COUNT(*) AS injuries,
                ROUND(AVG(injury.duration_days), 1) AS avg_duration
         FROM injury LEFT JOIN league ON league.id = injury.league_id
-        GROUP BY country, league ORDER BY injuries DESC, league
+        GROUP BY league.id, country, league ORDER BY injuries DESC, league
     """)
 
 
@@ -238,6 +352,35 @@ def league_detail(connection, league_id):
     }
 
 
+# 13,315 players is not a page. The index is an entry point ranked by injury
+# count; search is how a specific player is reached.
+PLAYER_INDEX_LIMIT = 100
+
+
+def players_index(connection, limit=None):
+    """Players ranked by injuries, capped, with the real population alongside.
+
+    `limit` reads the module constant at call time rather than binding it as a
+    default, so the cap can be lowered in a test to exercise truncation.
+    """
+    limit = PLAYER_INDEX_LIMIT if limit is None else limit
+    return {
+        "players": rows(connection, """
+            SELECT player.id, player.name, player.position, player.nationality,
+                   COUNT(absence.id) AS injuries,
+                   (SELECT SUM(minutes_played) FROM player_season
+                     WHERE player_season.player_id = player.id) AS minutes
+            FROM player
+            LEFT JOIN absence ON absence.player_id = player.id
+                             AND absence.category = 'injury'
+            GROUP BY player.id, player.name, player.position, player.nationality
+            ORDER BY injuries DESC, player.name LIMIT ?
+        """, (limit,)),
+        "total": _count(connection, "SELECT COUNT(*) FROM player"),
+        "limit": limit,
+    }
+
+
 def teams_index(connection):
     return rows(connection, """
         SELECT team.id, team.name, team.country, COUNT(absence.id) AS absences
@@ -256,6 +399,133 @@ PLAYER_LIMIT = 50
 
 def _count(connection, sql, *params):
     return connection.execute(sql, params).fetchone()[0]
+
+
+# ~5 full matches. Below this the denominator is too small for a rate to carry
+# meaning: one injury on 90 minutes reads as 11.11 per 1000, twenty times an
+# ever-present starter, and would top every ranking while describing nothing.
+# Named rather than inlined so one floor governs every ranking and every
+# footnote that explains an exclusion.
+MINUTES_FLOOR = 450
+RATE_LIMIT = 50
+
+# Candidate denominators at (player, season) grain: minutes SUMMED across a
+# player's clubs. This aggregation happens BEFORE anything joins to it — that
+# ordering is the whole trick. player_season is keyed
+# (player_id, season_id, team_id), so a player who moved mid-season holds one
+# row per club; joining `absence` onto the raw table multiplies his injuries
+# across those rows while each denominator is only one club's minutes. The
+# result is inflated and no error is raised.
+_SEASON_MINUTES = """
+    SELECT player_id, SUM(minutes_played) AS minutes_played, COUNT(*) AS team_rows
+    FROM player_season
+    WHERE season_id = ? AND minutes_played IS NOT NULL
+    GROUP BY player_id
+"""
+
+# Candidate denominators at (player, season, team) grain, for a team page:
+# minutes at THIS club only, in the club's current season.
+_TEAM_MINUTES = """
+    SELECT player_season.player_id AS player_id,
+           player_season.season_id AS season_id,
+           player_season.minutes_played AS minutes_played,
+           season.name AS season_name
+    FROM player_season
+    JOIN season ON season.id = player_season.season_id
+    WHERE player_season.team_id = ? AND season.is_current = 1
+      AND player_season.minutes_played IS NOT NULL
+"""
+
+
+def _floor_counts(connection, minutes_sql, params):
+    """How many candidates sit each side of MINUTES_FLOOR.
+
+    Counted rather than inferred from the returned rows: the ranking is capped
+    at `limit`, so its length is a page size, not a population — and the count
+    below the floor is what lets a page footnote the exclusion instead of
+    performing it silently.
+    """
+    row = connection.execute(f"""
+        SELECT SUM(CASE WHEN minutes_played >= ? THEN 1 ELSE 0 END) AS qualified,
+               SUM(CASE WHEN minutes_played <  ? THEN 1 ELSE 0 END) AS below
+        FROM ({minutes_sql})
+    """, (MINUTES_FLOOR, MINUTES_FLOOR, *params)).fetchone()
+    return row["qualified"] or 0, row["below"] or 0
+
+
+def player_rates(connection, season_id, limit=RATE_LIMIT):
+    """Injuries per 1000 minutes for ONE season, at (player, season) grain.
+
+    Minutes come from `_SEASON_MINUTES` (summed per player) and injuries from a
+    separate aggregate keyed the same way, so neither side can multiply the
+    other — see the comment on `_SEASON_MINUTES` for the join that goes wrong.
+
+    `season_id` is required, not optional: the `coverage_<year>` ramp (0.00
+    sidelined-per-fixture pre-2006 to ~4 today) means a rate compared across
+    seasons measures the vendor's backfill, not injury risk. There is
+    deliberately no all-seasons mode.
+
+    Returns the ranking (players at or above the floor) together with
+    `below_floor`, the number the floor removed, so the exclusion is reportable.
+    """
+    players = rows(connection, f"""
+        WITH minutes AS ({_SEASON_MINUTES}),
+             injuries AS (
+                 SELECT player_id, COUNT(*) AS injuries
+                 FROM absence
+                 WHERE season_id = ? AND category = 'injury'
+                 GROUP BY player_id
+             )
+        SELECT player.id, player.name, player.position,
+               minutes.minutes_played, minutes.team_rows,
+               COALESCE(injuries.injuries, 0) AS injuries,
+               ROUND(COALESCE(injuries.injuries, 0) * 1000.0 / minutes.minutes_played, 2)
+                 AS rate_per_1000
+        FROM minutes
+        JOIN player ON player.id = minutes.player_id
+        LEFT JOIN injuries ON injuries.player_id = minutes.player_id
+        WHERE minutes.minutes_played >= ?
+        ORDER BY rate_per_1000 DESC, minutes.minutes_played DESC
+        LIMIT ?
+    """, (season_id, season_id, MINUTES_FLOOR, limit))
+    qualified, below = _floor_counts(connection, _SEASON_MINUTES, (season_id,))
+    return {"players": players, "total": qualified, "below_floor": below,
+            "minutes_floor": MINUTES_FLOOR, "limit": limit}
+
+
+def team_rates(connection, team_id, limit=RATE_LIMIT):
+    """Injuries per 1000 minutes for a team's current-season squad.
+
+    Grain is (player, season, team) here, not (player, season): on a team page
+    the question is how a player fared *at this club*, so both sides are scoped
+    to it — minutes from the club's `player_season` row, injuries from absences
+    recorded against the club. A player who arrived mid-season shows only his
+    minutes and injuries here; the season page reports his whole season.
+    """
+    players = rows(connection, f"""
+        WITH minutes AS ({_TEAM_MINUTES}),
+             injuries AS (
+                 SELECT player_id, season_id, COUNT(*) AS injuries
+                 FROM absence
+                 WHERE team_id = ? AND category = 'injury'
+                 GROUP BY player_id, season_id
+             )
+        SELECT player.id, player.name, player.position,
+               minutes.season_id, minutes.season_name, minutes.minutes_played,
+               COALESCE(injuries.injuries, 0) AS injuries,
+               ROUND(COALESCE(injuries.injuries, 0) * 1000.0 / minutes.minutes_played, 2)
+                 AS rate_per_1000
+        FROM minutes
+        JOIN player ON player.id = minutes.player_id
+        LEFT JOIN injuries ON injuries.player_id = minutes.player_id
+                          AND injuries.season_id = minutes.season_id
+        WHERE minutes.minutes_played >= ?
+        ORDER BY rate_per_1000 DESC, minutes.minutes_played DESC
+        LIMIT ?
+    """, (team_id, team_id, MINUTES_FLOOR, limit))
+    qualified, below = _floor_counts(connection, _TEAM_MINUTES, (team_id,))
+    return {"players": players, "total": qualified, "below_floor": below,
+            "minutes_floor": MINUTES_FLOOR, "limit": limit}
 
 
 def team_detail(connection, team_id):
@@ -315,6 +585,7 @@ def team_detail(connection, team_id):
         "transfers_out_total": _count(
             connection, "SELECT COUNT(*) FROM transfer WHERE from_team_id = ?", team_id),
         "transfer_limit": TRANSFER_LIMIT,
+        "rates": team_rates(connection, team_id),
     }
 
 
@@ -363,6 +634,7 @@ def season_detail(connection, season_id):
         "players_total": _count(
             connection, "SELECT COUNT(*) FROM player_season WHERE season_id = ?", season_id),
         "player_limit": PLAYER_LIMIT,
+        "rates": player_rates(connection, season_id),
     }
 
 

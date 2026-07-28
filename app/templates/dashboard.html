@@ -1,0 +1,46 @@
+{% extends "base.html" %}{% import "macros.html" as macros %}
+{% block title %}Dashboard{% endblock %}{% block heading %}Dashboard{% endblock %}
+{% block subtitle %}Every view summarised — follow any number into its detail.{% endblock %}
+{% block content %}
+<section><div class="stat-row">
+{{ macros.stat(totals.absences, 'Absences', '/absences') }}
+{{ macros.stat(totals.injuries, 'Injuries', '/absences?category=injury') }}
+{{ macros.stat(totals.ongoing, 'Ongoing', '/absences?ongoing_only=true') }}
+{{ macros.stat(totals.players, 'Players', '/players') }}
+{{ macros.stat(totals.teams, 'Teams', '/teams') }}
+{{ macros.stat(totals.leagues, 'Competitions', '/leagues') }}
+{{ macros.stat(totals.seasons, 'Seasons', '/seasons') }}
+{{ macros.stat(totals.types, 'Injury types', '/types') }}
+</div></section>
+
+{# The dataset's biggest trap, met on the way in rather than only by whoever
+   visits /coverage: every count on this page is shaped by how much the vendor
+   had backfilled for that year. #}
+<section><div class="card banner"><p><strong>Coverage ramps over time.</strong> Sidelined records per fixture climb from 0.00 before 2006 to roughly 4 today. That is the vendor's historical coverage improving, not injury risk rising — so comparing counts or rates across years measures backfill, not football. <a href="/coverage">How coverage was measured →</a></p></div></section>
+
+<section><h2>Recent injuries</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>Player</th><th>Team</th><th>Type</th><th>Start</th><th>End</th></tr></thead><tbody>
+{% for row in recent %}<tr><td>{{ macros.entity_link('player', row.player_id, row.player or 'Unknown') }}</td><td>{{ macros.entity_link('team', row.team_id, row.team) }}</td><td>{{ macros.entity_link('type', row.type_id, row.type) }}</td><td>{{ row.start_date }}</td><td>{% if row.is_ongoing %}<span class="pill ongoing">ongoing</span>{% else %}{{ row.end_date or '—' }}{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No injuries recorded.') if not recent }}<p><a href="/absences">All absences ({{ '{:,}'.format(totals.absences) }}) →</a> · {{ '{:,}'.format(totals.ongoing) }} currently ongoing</p></div></section>
+
+<section><h2>Most injuries</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>Player</th><th class="num">Injuries</th><th class="num">Minutes</th></tr></thead><tbody>
+{% for row in players %}<tr><td>{{ macros.entity_link('player', row.id, row.name) }}</td><td class="num">{{ row.injuries }}</td><td class="num">{{ '{:,}'.format(row.minutes) if row.minutes else '—' }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No players recorded.') if not players }}<p class="note">Minutes are shown beside counts because a count without a denominator says as much about playing time as about fragility.</p><p><a href="/players">All players →</a></p></div></section>
+
+<section><h2>Injury burden by team</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>Team</th><th class="num">Injuries</th></tr></thead><tbody>
+{% for row in teams %}<tr><td>{{ macros.entity_link('team', row.id, row.name) }}</td><td class="num">{{ row.injuries }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No teams recorded.') if not teams }}<p><a href="/teams">All teams →</a></p></div></section>
+
+<section><h2>Competitions</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>League</th><th>Country</th><th class="num">Injuries</th></tr></thead><tbody>
+{% for row in leagues %}<tr><td>{{ macros.entity_link('league', row.id, row.name) }}</td><td>{{ row.country or '—' }}</td><td class="num">{{ row.injuries }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No competitions recorded.') if not leagues }}<p class="note">Coverage depth differs by competition — see <a href="/coverage">coverage</a> before comparing them.</p><p><a href="/leagues">All competitions →</a></p></div></section>
+
+<section><h2>Most common injury types</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>Type</th><th class="num">Injuries</th><th class="num">Avg days out</th></tr></thead><tbody>
+{% for row in types %}<tr><td>{{ macros.entity_link('type', row.id, row.name) }}</td><td class="num">{{ row.injuries }}</td><td class="num">{{ row.avg_days if row.avg_days is not none else '—' }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No injury types recorded.') if not types }}<p><a href="/types">All injury types →</a></p></div></section>
+
+<section><h2>Seasons</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>Season</th><th>League</th><th class="num">Injuries</th></tr></thead><tbody>
+{% for row in seasons %}<tr><td>{{ macros.entity_link('season', row.id, row.name) }}{% if row.is_current %} <span class="pill">current</span>{% endif %}</td><td>{{ macros.entity_link('league', row.league_id, row.league_name) }}</td><td class="num">{{ row.injuries }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No seasons recorded.') if not seasons }}<p><a href="/seasons">All seasons →</a></p></div></section>
+
+<section><div class="card"><p>Cross-cutting views: <a href="/analytics">Analytics</a> · <a href="/coverage">Coverage &amp; quality</a> · <a href="/docs">API docs</a></p></div></section>
+{% endblock %}

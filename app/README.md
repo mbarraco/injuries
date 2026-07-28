@@ -38,7 +38,9 @@ uv run --python 3.14 -m uvicorn app.main:app --reload --port 8000
 uv run --python 3.14 -m pytest tests/ -v
 ```
 
-- `http://localhost:8000/` — coverage and quality
+- `http://localhost:8000/` — dashboard: headline totals and a summary of every view
+- `http://localhost:8000/absences` — explorable absence records (`/injuries` redirects here)
+- `http://localhost:8000/players` `/teams` `/leagues` `/seasons` `/types` — entity indexes
 - `http://localhost:8000/analytics` — linked aggregations
-- `http://localhost:8000/injuries` — explorable injury records
+- `http://localhost:8000/coverage` — coverage, quality, and the caveats behind both
 - `http://localhost:8000/docs` — API documentation

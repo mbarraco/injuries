@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% import "macros.html" as macros %}
+{% block title %}Players{% endblock %}{% block heading %}Players{% endblock %}
+{% block subtitle %}Ranked by recorded injuries. Use the search box to reach a specific player.{% endblock %}
+{% block content %}
+<section>{{ macros.count_heading('Players', players|length, total) }}
+<p class="note">Injury counts are not comparable between players without their minutes: a squad player and an ever-present starter reach the same count from very different exposure. Per-1000-minute rates live on the <a href="/seasons">season</a> and team pages, where a single season scopes them.</p>
+<div class="table-wrap"><table><thead><tr><th>Player</th><th>Position</th><th>Nationality</th><th class="num">Injuries</th><th class="num">Minutes</th></tr></thead><tbody>
+{% for row in players %}<tr><td>{{ macros.entity_link('player', row.id, row.name) }}</td><td>{{ row.position or '—' }}</td><td>{{ row.nationality or '—' }}</td><td class="num">{{ row.injuries }}</td><td class="num">{{ '{:,}'.format(row.minutes) if row.minutes else '—' }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No players recorded.') if not players }}</section>
+{% endblock %}

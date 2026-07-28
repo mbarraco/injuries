@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% import "macros.html" as macros %}
 {% block title %}Coverage & Quality{% endblock %}
 {% block heading %}Coverage &amp; Data Quality{% endblock %}
 {% block subtitle %}What this dataset contains, how it was verified, and where its limits are.{% endblock %}
@@ -15,6 +15,25 @@
   <div class="funnel-step final"><div class="n">{{ '{:,}'.format(q.injuries.value|int) }}</div><div class="t">Injuries</div></div>
 </div></div></section>
 <section><h2>Measured quality</h2><div class="table-wrap"><table><thead><tr><th>Metric</th><th class="num">Value</th><th>Detail</th></tr></thead><tbody>{% for metric in quality %}<tr><td>{{ metric.metric }}</td><td class="num">{{ metric.value }}</td><td>{{ metric.detail }}</td></tr>{% endfor %}</tbody></table></div></section>
-<section><h2>Coverage by league</h2><div class="table-wrap"><table><thead><tr><th>Country</th><th>League</th><th class="num">Year 1</th><th class="num">Year 2</th><th class="num">Year 3</th><th>Tier</th></tr></thead><tbody>{% for row in coverage %}<tr><td>{{ row.country }}</td><td>{{ row.league }}</td><td class="num">{{ row.yr1 or 0 }}</td><td class="num">{{ row.yr2 or 0 }}</td><td class="num">{{ row.yr3 or 0 }}</td><td><span class="pill {{ row.tier }}">{{ row.tier }}</span></td></tr>{% endfor %}</tbody></table></div></section>
-<section><h2>Known gaps</h2><div class="card gaps"><ul><li><strong>Injuries-focused views.</strong> The vendor combines injuries and suspensions in one feed; these views show injuries, but every category is now retained in the <code>absence</code> table (see the per-category counts above) rather than dropped at ingest.</li><li><strong>Vendor inconsistency.</strong> The same concept arrives as <code>suspended</code> and <code>suspension</code>; both are measured and kept, not silently merged.</li><li><strong>Missing dimensions are retained.</strong> Unresolvable teams and player IDs do not cause injury rows to be discarded.</li><li><strong>Season attribution is derived.</strong> The vendor omits it from sideline records, so it comes from the parent fixture.</li><li><strong>History depth is provisional.</strong> Sparse older coverage may reflect trial-account restrictions; it is not presented as a settled limitation.</li></ul></div></section>
+<section><h2>Injury coverage over time</h2><div class="card">
+<p class="intro">Sidelined records per fixture, by year. The climb is the vendor backfilling history, <strong>not</strong> injuries becoming more frequent — so comparing injury counts, or rates, across years measures Sportmonks' coverage rather than football.</p>
+<div class="chart-card"><canvas id="coverageRamp" height="220"></canvas></div>
+<p class="note">The series changes composition in 2024. Before that it is UEFA cups alone; from 2024 it is those cups <em>plus</em> 58 domestic leagues. The 2023→2024 step therefore blends a coverage change with a mix change and should not be attributed to either on its own.</p>
+</div></section>
+<section><h2>Coverage by competition</h2><div class="card"><p class="intro">Depth differs by competition by design: domestic leagues expose exactly 3 seasons (2024/25–2026/27), the hard ceiling of the subscription plan, while the UEFA cups reach back to 2000.</p></div><div class="table-wrap"><table><thead><tr><th>Country</th><th>Competition</th><th class="num">Records</th><th class="num">Buckets</th><th>Span</th><th>Tier</th></tr></thead><tbody>{% for row in coverage %}<tr><td>{{ row.country or '—' }}</td><td>{{ macros.entity_link('league', row.league_id, row.league) }}</td><td class="num">{{ '{:,}'.format(row.records or 0) }}</td><td class="num">{{ row.buckets }}</td><td>{{ row.first_bucket }}{% if row.last_bucket != row.first_bucket %} → {{ row.last_bucket }}{% endif %}</td><td>{% if row.tier %}<span class="pill {{ row.tier }}">{{ row.tier }}</span>{% else %}—{% endif %}</td></tr>{% endfor %}</tbody></table></div></section>
+<section><h2>Known gaps</h2><div class="card gaps"><ul><li><strong>Injuries-focused views.</strong> The vendor combines injuries and suspensions in one feed; these views show injuries, but every category is now retained in the <code>absence</code> table (see the per-category counts above) rather than dropped at ingest.</li><li><strong>Vendor inconsistency.</strong> The same concept arrives as <code>suspended</code> and <code>suspension</code>; both are measured and kept, not silently merged.</li><li><strong>Missing dimensions are retained.</strong> Unresolvable teams and player IDs do not cause injury rows to be discarded.</li><li><strong>Season attribution is derived.</strong> The vendor omits it from sideline records, so it comes from the parent fixture.</li><li><strong>History depth is a plan ceiling, and it is settled.</strong> Domestic leagues expose exactly 3 seasons (2024/25–2026/27); the UEFA cups reach back to 2000. Sparse older coverage is what the subscription sells, not a gap another ingest run would fill.</li></ul></div></section>
 {% endblock %}
+{% block scripts %}<script>
+const ink='#5b6472', line='#e3e7ec';
+new Chart(document.getElementById('coverageRamp'), {
+  type: 'line',
+  data: {labels: {{ ramp|map(attribute='year')|list|tojson }},
+         datasets: [{label: 'sidelined records per fixture',
+                     data: {{ ramp|map(attribute='per_fixture')|list|tojson }},
+                     borderColor: '#2f6df6', backgroundColor: 'rgba(47,109,246,.12)',
+                     fill: true, tension: .25, pointRadius: 3}]},
+  options: {responsive: true, plugins: {legend: {display: false}},
+            scales: {x: {grid: {display: false}, ticks: {color: ink}},
+                     y: {grid: {color: line}, ticks: {color: ink}, beginAtZero: true}}}
+});
+</script>{% endblock %}

@@ -106,6 +106,49 @@ def players_dir(tmp_path):
 
 
 @pytest.fixture
+def rates_players_dir(tmp_path):
+    """Playing time shaped around the two traps in the rate metric.
+
+    Player 5003 moved mid-season: TWO player_season rows for season 77, at two
+    different clubs (300 + 400 minutes). player_season is keyed
+    (player, season, team), so a naive join to `absence` returns one row per
+    club and divides the season's injuries by a single club's minutes — wrong,
+    silently. The intended grain is (player, season): 700 minutes, one injury.
+
+    Player 5001 sits at 90 minutes with one injury, which reads as 11.11 per
+    1000 minutes. That is the artefact MINUTES_FLOOR exists to keep out of a
+    ranking, so the floor is genuinely exercised rather than vacuously true.
+    """
+    directory = tmp_path / "rate_players"
+    directory.mkdir()
+    (directory / "5001.json").write_text(json.dumps({
+        "id": 5001,
+        "statistics": [{"player_id": 5001, "season_id": 77, "team_id": 100,
+                        "details": [{"type_id": 119, "value": {"total": 90}}]}],
+    }))
+    (directory / "5003.json").write_text(json.dumps({
+        "id": 5003,
+        "statistics": [
+            {"player_id": 5003, "season_id": 77, "team_id": 100,
+             "details": [{"type_id": 119, "value": {"total": 300}}]},
+            {"player_id": 5003, "season_id": 77, "team_id": 200,
+             "details": [{"type_id": 119, "value": {"total": 400}}]},
+        ],
+    }))
+    return directory
+
+
+@pytest.fixture
+def rates_connection(tmp_path, raw_cache_dir, reference_db, rates_players_dir):
+    """A database built from rates_players_dir — kept separate from `connection`
+    so the mid-season-move rows don't perturb the squad and minutes assertions
+    the entity-page tests make against the standard fixture."""
+    output = tmp_path / "rates.db"
+    etl.build(raw_cache_dir, reference_db, output, players_dir=rates_players_dir)
+    return db.connect(output)
+
+
+@pytest.fixture
 def connection(tmp_path, raw_cache_dir, reference_db, players_dir):
     """A built app.db, opened read-only, for testing query functions directly.
 

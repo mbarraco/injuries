@@ -14,10 +14,11 @@
              hx-get="/search" hx-trigger="keyup changed delay:200ms, search" hx-target="#search-results">
       <div id="search-results"></div>
     </div>
-    <a href="/" class="{{ 'active' if active == 'coverage' else '' }}">Coverage &amp; Quality</a>
+    <a href="/" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
     <a href="/analytics" class="{{ 'active' if active == 'analytics' else '' }}">Analytics</a>
     <a href="/absences" class="{{ 'active' if active == 'absences' else '' }}">Absences</a>
     <a href="/seasons" class="{{ 'active' if active == 'seasons' else '' }}">Seasons</a>
+    <a href="/coverage" class="{{ 'active' if active == 'coverage' else '' }}">Coverage &amp; Quality</a>
     <div class="sidebar-foot"><a href="/docs">API docs →</a></div>
   </nav>
   <main><header class="page-head"><h1>{% block heading %}{% endblock %}</h1><p class="subtitle">{% block subtitle %}{% endblock %}</p></header>{% block content %}{% endblock %}</main>
