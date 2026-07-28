@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_RAW_DIR = os.path.join(BASE, "data", "raw", "sportmonks", "fixtures")
 DEFAULT_PLAYERS_DIR = os.path.join(BASE, "data", "raw", "sportmonks", "players")
+DEFAULT_TYPES_FILE = os.path.join(BASE, "data", "raw", "sportmonks", "types.json")
 DEFAULT_REFERENCE_DB = os.path.join(BASE, "coverage.db")
 DEFAULT_OUT_DB = os.path.join(BASE, "app", "app.db")
 SCHEMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
@@ -85,6 +86,25 @@ def collect_absences(raw_dir, verbose=False):
                 }
     _say(verbose, f"\n  {len(absences)} distinct absences from {len(files)} files")
     return absences, len(files), fixtures_by_year, sidelined_by_year
+
+
+def collect_types(reference, types_file):
+    """The full Sportmonks type taxonomy, not just the absence-referenced slice.
+
+    `ingest/resolve.py` only resolves type ids referenced by sidelined records,
+    so coverage.db holds a subset. Transfer types (Loan / Transfer / Free
+    Transfer) are never referenced by an absence and so never reached app.db,
+    leaving every transfer's type unresolvable even though the names sit in the
+    raw types cache already. Reads the cache as the wider source and falls back
+    to coverage.db alone when it isn't present.
+    """
+    resolved = {int(row[0]): row[1] for row in reference.execute("SELECT id, name FROM sportmonks_type")}
+    if types_file and os.path.exists(types_file):
+        with open(types_file, encoding="utf-8") as source:
+            for entry in json.load(source):
+                if entry.get("id") is not None:
+                    resolved.setdefault(int(entry["id"]), entry.get("name"))
+    return sorted(resolved.items())
 
 
 def _stat_total(details, type_id):
@@ -218,12 +238,15 @@ def _write_quality_metrics(connection, absences, rows, category_counts, file_cou
 
 
 def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEFAULT_OUT_DB,
-          players_dir=None, verbose=False):
+          players_dir=None, verbose=False, types_file=DEFAULT_TYPES_FILE):
     """Rebuild app.db from cached raw fixtures and resolved reference data.
 
     `players_dir`, when given, is scanned for enriched player JSON to populate
     the `player_season` table (playing time per season). Left None by callers
     that don't need it (e.g. tests), so the player_season table stays empty.
+
+    `types_file` widens the type taxonomy beyond the absence-referenced subset
+    in coverage.db, so transfer types resolve to names — see collect_types.
 
     `verbose` streams per-phase progress to stdout. Off by default so calling
     build() as a library (tests, the app) stays silent; the CLI turns it on.
@@ -246,8 +269,8 @@ def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEF
         connection.executemany("INSERT INTO team VALUES (?, ?, ?, ?, ?)",
                                [(int(row[0]), *row[1:]) for row in reference.execute(
                                    "SELECT id, name, country, founded, short_code FROM sportmonks_team")])
-        connection.executemany("INSERT INTO injury_type VALUES (?, ?)",
-                               [(int(row[0]), row[1]) for row in reference.execute("SELECT id, name FROM sportmonks_type")])
+        connection.executemany("INSERT OR IGNORE INTO injury_type VALUES (?, ?)",
+                               collect_types(reference, types_file))
         seasons = list(reference.execute(
             "SELECT id, league_id, country, league_name, name, is_current FROM sportmonks_season"))
         connection.executemany("INSERT OR IGNORE INTO league VALUES (?, ?, ?)",

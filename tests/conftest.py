@@ -87,9 +87,21 @@ def players_dir(tmp_path):
                 {"type_id": 322, "value": {"total": 11}},
             ],
         }],
+        # One of each state the UI must distinguish: a paid transfer, a free
+        # transfer (no fee BY DEFINITION, not missing), a loan with no fee
+        # disclosed, and a type absent from the vendor's taxonomy.
         "transfers": [
             {"id": 700, "player_id": 5001, "from_team_id": 200, "to_team_id": 100,
              "date": "2022-07-01", "type_id": 219, "amount": 5000000,
+             "completed": True, "career_ended": False},
+            {"id": 701, "player_id": 5001, "from_team_id": 100, "to_team_id": 200,
+             "date": "2021-07-01", "type_id": 220, "amount": None,
+             "completed": True, "career_ended": False},
+            {"id": 702, "player_id": 5001, "from_team_id": 200, "to_team_id": 100,
+             "date": "2020-07-01", "type_id": 218, "amount": None,
+             "completed": True, "career_ended": False},
+            {"id": 703, "player_id": 5001, "from_team_id": 100, "to_team_id": 200,
+             "date": "2019-07-01", "type_id": 9688, "amount": None,
              "completed": True, "career_ended": False},
         ],
     }))
@@ -139,47 +151,66 @@ def rates_players_dir(tmp_path):
 
 
 @pytest.fixture
-def rates_connection(tmp_path, raw_cache_dir, reference_db, rates_players_dir):
+def types_file(tmp_path):
+    """The vendor type taxonomy, as its own fixture.
+
+    etl.build defaults this to the real data/raw cache; passing an explicit
+    file keeps tests from silently depending on repo data that ingest runs
+    change. Deliberately includes the transfer types (which coverage.db never
+    holds, since resolve.py only stores absence-referenced ids) and omits 9688,
+    so the unnamed-type path stays exercised.
+    """
+    path = tmp_path / "types.json"
+    path.write_text(json.dumps([
+        {"id": 218, "name": "Loan"},
+        {"id": 219, "name": "Transfer"},
+        {"id": 220, "name": "Free Transfer"},
+    ]))
+    return path
+
+
+@pytest.fixture
+def rates_connection(tmp_path, raw_cache_dir, reference_db, rates_players_dir, types_file):
     """A database built from rates_players_dir — kept separate from `connection`
     so the mid-season-move rows don't perturb the squad and minutes assertions
     the entity-page tests make against the standard fixture."""
     output = tmp_path / "rates.db"
-    etl.build(raw_cache_dir, reference_db, output, players_dir=rates_players_dir)
+    etl.build(raw_cache_dir, reference_db, output, players_dir=rates_players_dir, types_file=types_file)
     return db.connect(output)
 
 
 @pytest.fixture
-def connection(tmp_path, raw_cache_dir, reference_db, players_dir):
+def connection(tmp_path, raw_cache_dir, reference_db, players_dir, types_file):
     """A built app.db, opened read-only, for testing query functions directly.
 
     Cheaper and more precise than going through the HTTP client when the
     assertion is about returned data rather than rendered markup.
     """
     output = tmp_path / "app.db"
-    etl.build(raw_cache_dir, reference_db, output, players_dir=players_dir)
+    etl.build(raw_cache_dir, reference_db, output, players_dir=players_dir, types_file=types_file)
     return db.connect(output)
 
 
 @pytest.fixture
-def client(tmp_path, raw_cache_dir, reference_db, players_dir, monkeypatch):
+def client(tmp_path, raw_cache_dir, reference_db, players_dir, types_file, monkeypatch):
     monkeypatch.setenv(auth.USER_VAR, _USER)
     monkeypatch.setenv(auth.PASSWORD_VAR, _PASSWORD)
     output = tmp_path / "app.db"
-    etl.build(raw_cache_dir, reference_db, output, players_dir=players_dir)
+    etl.build(raw_cache_dir, reference_db, output, players_dir=players_dir, types_file=types_file)
     monkeypatch.setattr("app.db.DB_PATH", str(output))
     from app.main import app
     return TestClient(app, headers={"Authorization": _AUTH_HEADER})
 
 
 @pytest.fixture
-def rates_client(tmp_path, raw_cache_dir, reference_db, rates_players_dir, monkeypatch):
+def rates_client(tmp_path, raw_cache_dir, reference_db, rates_players_dir, types_file, monkeypatch):
     """HTTP client over the rates fixture, where team 100's players (90 and 300
     minutes) both sit BELOW the floor — the "season is young" empty state that
     the standard fixture can't produce, since its player clears 450."""
     monkeypatch.setenv(auth.USER_VAR, _USER)
     monkeypatch.setenv(auth.PASSWORD_VAR, _PASSWORD)
     output = tmp_path / "rates_app.db"
-    etl.build(raw_cache_dir, reference_db, output, players_dir=rates_players_dir)
+    etl.build(raw_cache_dir, reference_db, output, players_dir=rates_players_dir, types_file=types_file)
     monkeypatch.setattr("app.db.DB_PATH", str(output))
     from app.main import app
     return TestClient(app, headers={"Authorization": _AUTH_HEADER})

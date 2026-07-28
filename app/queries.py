@@ -282,6 +282,37 @@ def filter_options(connection):
     }
 
 
+# Transfers carry more than date and clubs: a type (Loan / Transfer / Free
+# Transfer), a fee, and completion/retirement flags. `fee_reported` separates
+# "no fee was disclosed" from "no fee exists" — a free transfer legitimately
+# has no amount, so rendering both as a bare blank would misreport the second
+# as missing data. Type names only resolve because the ETL loads the full
+# taxonomy (see etl.collect_types).
+_TRANSFER_SELECT = """
+    SELECT transfer.id, transfer.date, transfer.amount, transfer.completed,
+           transfer.career_ended, transfer.type_id,
+           injury_type.name AS transfer_type,
+           transfer.amount IS NOT NULL AS fee_reported,
+           transfer.player_id, player.name AS player,
+           transfer.from_team_id, from_team.name AS from_team,
+           transfer.to_team_id, to_team.name AS to_team
+    FROM transfer
+    LEFT JOIN player ON player.id = transfer.player_id
+    LEFT JOIN team AS from_team ON from_team.id = transfer.from_team_id
+    LEFT JOIN team AS to_team ON to_team.id = transfer.to_team_id
+    LEFT JOIN injury_type ON injury_type.id = transfer.type_id
+"""
+
+# Sportmonks returns this type id on ~14k transfers but omits it from the
+# /types taxonomy, so it has no name. Shown as-is rather than guessed at: the
+# rows look like end-of-loan returns, but that is inference from their shape,
+# not something the vendor confirms.
+UNNAMED_TRANSFER_TYPE = "Unspecified"
+
+# Sportmonks type ids, from the cached taxonomy.
+LOAN_TYPE, TRANSFER_TYPE, FREE_TRANSFER_TYPE = 218, 219, 220
+
+
 def player_timeline(connection, player_id):
     """A player plus everything reachable from it: injuries, season minutes,
     transfer history, and the current team derived from the current season."""
@@ -297,20 +328,35 @@ def player_timeline(connection, player_id):
         WHERE player_season.player_id = ?
         ORDER BY season.name DESC
     """, (player_id,))
-    transfers = rows(connection, """
-        SELECT transfer.id, transfer.date,
-               transfer.from_team_id, from_team.name AS from_team,
-               transfer.to_team_id, to_team.name AS to_team
-        FROM transfer
-        LEFT JOIN team AS from_team ON from_team.id = transfer.from_team_id
-        LEFT JOIN team AS to_team ON to_team.id = transfer.to_team_id
+    transfers = rows(connection, f"""
+        {_TRANSFER_SELECT}
         WHERE transfer.player_id = ? ORDER BY transfer.date DESC
     """, (player_id,))
     current = next((season for season in seasons if season["is_current"]), None)
     current_team = ({"id": current["team_id"], "name": current["team_name"]}
                     if current and current["team_id"] else None)
     return {"player": dict(player) if player else None, "injuries": injuries,
-            "seasons": seasons, "transfers": transfers, "current_team": current_team}
+            "seasons": seasons, "transfers": transfers, "current_team": current_team,
+            "transfer_summary": _transfer_summary(transfers)}
+
+
+def _transfer_summary(transfers):
+    """Totals for a set of transfer rows, stated so they can't be over-read.
+
+    `fees_known` is the count the total is actually based on; without it a
+    career total reads as complete when most moves disclose no fee. Free
+    transfers are counted separately because their missing amount is correct,
+    not absent — lumping them into "unreported" would overstate the gap.
+    """
+    fees = [row["amount"] for row in transfers if row["amount"] is not None]
+    return {
+        "moves": len(transfers),
+        "total_fees": sum(fees) if fees else None,
+        "fees_known": len(fees),
+        "free_transfers": sum(1 for row in transfers if row["type_id"] == FREE_TRANSFER_TYPE),
+        "loans": sum(1 for row in transfers if row["type_id"] == LOAN_TYPE),
+        "career_ended": any(row["career_ended"] for row in transfers),
+    }
 
 
 def leagues_index(connection):
@@ -564,27 +610,28 @@ def team_detail(connection, team_id):
         "absences_total": _count(
             connection, "SELECT COUNT(*) FROM absence WHERE team_id = ? AND category = 'injury'", team_id),
         "absences_limit": ABSENCE_LIMIT,
-        "transfers_in": rows(connection, """
-            SELECT transfer.id, transfer.date, player.id AS player_id, player.name AS player,
-                   transfer.from_team_id, from_team.name AS from_team
-            FROM transfer
-            JOIN player ON player.id = transfer.player_id
-            LEFT JOIN team AS from_team ON from_team.id = transfer.from_team_id
+        "transfers_in": rows(connection, f"""
+            {_TRANSFER_SELECT}
             WHERE transfer.to_team_id = ? ORDER BY transfer.date DESC LIMIT ?
         """, (team_id, TRANSFER_LIMIT)),
         "transfers_in_total": _count(
             connection, "SELECT COUNT(*) FROM transfer WHERE to_team_id = ?", team_id),
-        "transfers_out": rows(connection, """
-            SELECT transfer.id, transfer.date, player.id AS player_id, player.name AS player,
-                   transfer.to_team_id, to_team.name AS to_team
-            FROM transfer
-            JOIN player ON player.id = transfer.player_id
-            LEFT JOIN team AS to_team ON to_team.id = transfer.to_team_id
+        "transfers_out": rows(connection, f"""
+            {_TRANSFER_SELECT}
             WHERE transfer.from_team_id = ? ORDER BY transfer.date DESC LIMIT ?
         """, (team_id, TRANSFER_LIMIT)),
         "transfers_out_total": _count(
             connection, "SELECT COUNT(*) FROM transfer WHERE from_team_id = ?", team_id),
         "transfer_limit": TRANSFER_LIMIT,
+        # Spend/income over ALL transfers, not just the capped page above, and
+        # reported with the count they rest on: most moves disclose no fee, so a
+        # bare total would read as complete.
+        "spend": dict(connection.execute("""
+            SELECT SUM(amount) AS fees, COUNT(amount) AS fees_known, COUNT(*) AS moves
+            FROM transfer WHERE to_team_id = ?""", (team_id,)).fetchone()),
+        "income": dict(connection.execute("""
+            SELECT SUM(amount) AS fees, COUNT(amount) AS fees_known, COUNT(*) AS moves
+            FROM transfer WHERE from_team_id = ?""", (team_id,)).fetchone()),
         "rates": team_rates(connection, team_id),
     }
 

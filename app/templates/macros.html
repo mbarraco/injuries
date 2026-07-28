@@ -73,6 +73,43 @@
   {%- endif -%}
 {% endmacro %}
 
+{# A transfer fee, distinguishing three genuinely different states.
+   Only ~18% of transfers carry an amount, but that is not 82% missing data:
+   a free transfer HAS no fee, so showing it as blank would misreport a known
+   fact as an absent one. Free is stated, undisclosed is marked, and a real fee
+   is formatted. #}
+{% macro transfer_fee(row) %}
+  {%- if row.amount is not none -%}
+    <span class="fee">€{{ '{:,}'.format(row.amount) }}</span>
+  {%- elif row.type_id == 220 -%}
+    <span class="muted" title="A free transfer has no fee">free</span>
+  {%- else -%}
+    <span class="muted" title="No fee disclosed for this move">undisclosed</span>
+  {%- endif -%}
+{% endmacro %}
+
+{# Transfer type as a pill. Type 9688 appears on thousands of rows but is
+   absent from the vendor's own /types taxonomy, so it is labelled plainly
+   rather than guessed at. #}
+{% macro transfer_type(row) %}
+  {%- if row.transfer_type -%}
+    <span class="pill type-{{ row.type_id }}">{{ row.transfer_type }}</span>
+  {%- else -%}
+    <span class="pill muted" title="Type {{ row.type_id }} is not in the vendor's type list">unspecified</span>
+  {%- endif -%}
+{% endmacro %}
+
+{# Fee totals for a team, always carrying the count they rest on.
+   Most moves disclose no fee, so "€40,000,000 incoming" alone would read as a
+   complete transfer budget when it may cover a handful of the moves. #}
+{% macro transfer_totals(label, totals) %}
+  {%- if totals and totals.moves -%}
+    <p class="note">{{ label }}: {{ '{:,}'.format(totals.moves) }} move{{ '' if totals.moves == 1 else 's' }}
+    {%- if totals.fees %}, €{{ '{:,}'.format(totals.fees) }} in disclosed fees across {{ totals.fees_known }} of them — the rest report no fee.
+    {%- else %}, none with a disclosed fee.{% endif %}</p>
+  {%- endif -%}
+{% endmacro %}
+
 {% macro empty_state(message) %}
 <p class="empty">{{ message }}</p>
 {% endmacro %}

@@ -12,8 +12,10 @@
 {% for row in seasons %}<tr><td>{{ macros.entity_link('season', row.season_id, row.season_name) }}</td><td>{{ macros.entity_link('team', row.team_id, row.team_name) }}</td><td class="num">{{ row.minutes_played if row.minutes_played is not none else '—' }}</td><td class="num">{{ row.appearances if row.appearances is not none else '—' }}</td></tr>{% endfor %}
 </tbody></table></div>{{ macros.empty_state('No season minutes recorded for this player.') if not seasons }}</section>
 
-<section><h2>Transfer history ({{ transfers|length }})</h2><div class="table-wrap"><table><thead><tr><th>Date</th><th>From</th><th>To</th></tr></thead><tbody>
-{% for row in transfers %}<tr><td>{{ row.date or '—' }}</td><td>{{ macros.entity_link('team', row.from_team_id, row.from_team) }}</td><td>{{ macros.entity_link('team', row.to_team_id, row.to_team) }}</td></tr>{% endfor %}
+<section><h2>Transfer history ({{ transfers|length }})</h2>
+{% if transfers %}<p class="note">{{ transfer_summary.moves }} move{{ '' if transfer_summary.moves == 1 else 's' }}{% if transfer_summary.loans %} · {{ transfer_summary.loans }} loan{{ '' if transfer_summary.loans == 1 else 's' }}{% endif %}{% if transfer_summary.free_transfers %} · {{ transfer_summary.free_transfers }} free{% endif %}{% if transfer_summary.total_fees %} · €{{ '{:,}'.format(transfer_summary.total_fees) }} in disclosed fees across {{ transfer_summary.fees_known }} of {{ transfer_summary.moves }} moves{% else %} · no fees disclosed{% endif %}{% if transfer_summary.career_ended %} · career ended{% endif %}.</p>{% endif %}
+<div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>From</th><th>To</th><th class="num">Fee</th><th>Status</th></tr></thead><tbody>
+{% for row in transfers %}<tr><td>{{ row.date or '—' }}</td><td>{{ macros.transfer_type(row) }}</td><td>{{ macros.entity_link('team', row.from_team_id, row.from_team) }}</td><td>{{ macros.entity_link('team', row.to_team_id, row.to_team) }}</td><td class="num">{{ macros.transfer_fee(row) }}</td><td>{% if row.career_ended %}<span class="pill thin">retired</span>{% elif not row.completed %}<span class="pill thin">not completed</span>{% else %}<span class="muted">—</span>{% endif %}</td></tr>{% endfor %}
 </tbody></table></div>{{ macros.empty_state('No transfer history recorded for this player.') if not transfers }}</section>
 
 <p><a href="/absences">← Back to all records</a></p>

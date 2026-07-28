@@ -22,11 +22,15 @@
 {% for row in absences %}<tr><td>{{ macros.entity_link('player', row.player_id, row.player) }}</td><td>{{ macros.entity_link('league', row.league_id, row.league) }}</td><td>{{ macros.entity_link('type', row.type_id, row.type) }}</td><td>{{ row.start_date }}</td><td>{% if row.is_ongoing %}<span class="pill ongoing">ongoing</span>{% else %}{{ row.end_date or '—' }}{% endif %}</td><td class="num">{{ row.duration_days if row.duration_days is not none else '—' }}</td></tr>{% endfor %}
 </tbody></table></div>{{ macros.empty_state('No injuries recorded for this team.') if not absences }}</section>
 
-<section>{{ macros.count_heading('Transfers in', transfers_in|length, transfers_in_total) }}<div class="table-wrap"><table><thead><tr><th>Player</th><th>From</th><th>Date</th></tr></thead><tbody>
-{% for row in transfers_in %}<tr><td>{{ macros.entity_link('player', row.player_id, row.player) }}</td><td>{{ macros.entity_link('team', row.from_team_id, row.from_team) }}</td><td>{{ row.date or '—' }}</td></tr>{% endfor %}
+<section>{{ macros.count_heading('Transfers in', transfers_in|length, transfers_in_total) }}
+{{ macros.transfer_totals('Incoming', spend) }}
+<div class="table-wrap"><table><thead><tr><th>Player</th><th>Type</th><th>From</th><th>Date</th><th class="num">Fee</th></tr></thead><tbody>
+{% for row in transfers_in %}<tr><td>{{ macros.entity_link('player', row.player_id, row.player) }}</td><td>{{ macros.transfer_type(row) }}</td><td>{{ macros.entity_link('team', row.from_team_id, row.from_team) }}</td><td>{{ row.date or '—' }}</td><td class="num">{{ macros.transfer_fee(row) }}</td></tr>{% endfor %}
 </tbody></table></div>{{ macros.empty_state('No transfers in recorded for this team.') if not transfers_in }}</section>
 
-<section>{{ macros.count_heading('Transfers out', transfers_out|length, transfers_out_total) }}<div class="table-wrap"><table><thead><tr><th>Player</th><th>To</th><th>Date</th></tr></thead><tbody>
-{% for row in transfers_out %}<tr><td>{{ macros.entity_link('player', row.player_id, row.player) }}</td><td>{{ macros.entity_link('team', row.to_team_id, row.to_team) }}</td><td>{{ row.date or '—' }}</td></tr>{% endfor %}
+<section>{{ macros.count_heading('Transfers out', transfers_out|length, transfers_out_total) }}
+{{ macros.transfer_totals('Outgoing', income) }}
+<div class="table-wrap"><table><thead><tr><th>Player</th><th>Type</th><th>To</th><th>Date</th><th class="num">Fee</th></tr></thead><tbody>
+{% for row in transfers_out %}<tr><td>{{ macros.entity_link('player', row.player_id, row.player) }}</td><td>{{ macros.transfer_type(row) }}</td><td>{{ macros.entity_link('team', row.to_team_id, row.to_team) }}</td><td>{{ row.date or '—' }}</td><td class="num">{{ macros.transfer_fee(row) }}</td></tr>{% endfor %}
 </tbody></table></div>{{ macros.empty_state('No transfers out recorded for this team.') if not transfers_out }}</section>
 {% endblock %}
