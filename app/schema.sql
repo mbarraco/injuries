@@ -28,7 +28,13 @@ CREATE TABLE season (
     id INTEGER PRIMARY KEY,
     league_id INTEGER REFERENCES league(id),
     name TEXT,
-    is_current INTEGER
+    is_current INTEGER,
+    -- The vendor's real window for the season. Kept because transfers carry a
+    -- date but no season_id, so bucketing them means matching that date against
+    -- an actual window rather than assuming a league calendar. Null for seasons
+    -- that reached the dimension only via coverage.db, which doesn't store them.
+    starting_at TEXT,
+    ending_at TEXT
 );
 
 CREATE TABLE team (

@@ -170,47 +170,108 @@ def types_file(tmp_path):
 
 
 @pytest.fixture
-def rates_connection(tmp_path, raw_cache_dir, reference_db, rates_players_dir, types_file):
+def seasons_dir(tmp_path):
+    """The cached league+seasons files, the wider source for both dimensions.
+
+    Deliberately includes a competition that is ABSENT from reference_db —
+    league 2, a cup. coverage.db only ever held the domestic leagues, so a
+    fixture built from it alone would let the broken build pass: the cup is the
+    whole gap the repair closes.
+    """
+    directory = tmp_path / "seasons"
+    directory.mkdir()
+    (directory / "10.json").write_text(json.dumps({
+        # country_id 999 is fictional on purpose. The other fixtures already
+        # call this country "Testland", and borrowing a real id (320 is Denmark)
+        # would quietly attach an invented name to a real entity.
+        "id": 10, "name": "Test League", "country_id": 999,
+        "seasons": [
+            {"id": 77, "league_id": 10, "name": "2024/2025", "is_current": True,
+             "starting_at": "2024-08-16", "ending_at": "2025-05-31"},
+            {"id": 78, "league_id": 10, "name": "2023/2024", "is_current": False,
+             "starting_at": "2023-08-11", "ending_at": "2024-05-19"},
+        ],
+    }))
+    # A real competition with its real values, so the cup path is exercised
+    # against data that matches production rather than invented figures.
+    (directory / "2.json").write_text(json.dumps({
+        "id": 2, "name": "Champions League", "country_id": 41,
+        "seasons": [
+            {"id": 23619, "league_id": 2, "name": "2024/2025", "is_current": False,
+             "starting_at": "2024-07-09", "ending_at": "2025-05-31"},
+        ],
+    }))
+    # The vendor returns an empty document for a league whose seasons were never
+    # cached; the real cache holds two of these. It must be skipped, not crash.
+    (directory / "316.json").write_text(json.dumps({}))
+    return directory
+
+
+@pytest.fixture
+def countries_file(tmp_path):
+    """id -> name for the country the season files reference by id only.
+
+    Real ids keep real names (41 is Europe, which is what the cups resolve to);
+    the fictional league's country keeps a fictional id.
+    """
+    path = tmp_path / "countries.json"
+    path.write_text(json.dumps([
+        {"id": 999, "name": "Testland"},
+        {"id": 41, "name": "Europe"},
+    ]))
+    return path
+
+
+@pytest.fixture
+def rates_connection(tmp_path, raw_cache_dir, reference_db, rates_players_dir, types_file,
+                     seasons_dir, countries_file):
     """A database built from rates_players_dir — kept separate from `connection`
     so the mid-season-move rows don't perturb the squad and minutes assertions
     the entity-page tests make against the standard fixture."""
     output = tmp_path / "rates.db"
-    etl.build(raw_cache_dir, reference_db, output, players_dir=rates_players_dir, types_file=types_file)
+    etl.build(raw_cache_dir, reference_db, output, players_dir=rates_players_dir,
+              types_file=types_file, seasons_dir=seasons_dir, countries_file=countries_file)
     return db.connect(output)
 
 
 @pytest.fixture
-def connection(tmp_path, raw_cache_dir, reference_db, players_dir, types_file):
+def connection(tmp_path, raw_cache_dir, reference_db, players_dir, types_file,
+               seasons_dir, countries_file):
     """A built app.db, opened read-only, for testing query functions directly.
 
     Cheaper and more precise than going through the HTTP client when the
     assertion is about returned data rather than rendered markup.
     """
     output = tmp_path / "app.db"
-    etl.build(raw_cache_dir, reference_db, output, players_dir=players_dir, types_file=types_file)
+    etl.build(raw_cache_dir, reference_db, output, players_dir=players_dir,
+              types_file=types_file, seasons_dir=seasons_dir, countries_file=countries_file)
     return db.connect(output)
 
 
 @pytest.fixture
-def client(tmp_path, raw_cache_dir, reference_db, players_dir, types_file, monkeypatch):
+def client(tmp_path, raw_cache_dir, reference_db, players_dir, types_file,
+           seasons_dir, countries_file, monkeypatch):
     monkeypatch.setenv(auth.USER_VAR, _USER)
     monkeypatch.setenv(auth.PASSWORD_VAR, _PASSWORD)
     output = tmp_path / "app.db"
-    etl.build(raw_cache_dir, reference_db, output, players_dir=players_dir, types_file=types_file)
+    etl.build(raw_cache_dir, reference_db, output, players_dir=players_dir,
+              types_file=types_file, seasons_dir=seasons_dir, countries_file=countries_file)
     monkeypatch.setattr("app.db.DB_PATH", str(output))
     from app.main import app
     return TestClient(app, headers={"Authorization": _AUTH_HEADER})
 
 
 @pytest.fixture
-def rates_client(tmp_path, raw_cache_dir, reference_db, rates_players_dir, types_file, monkeypatch):
+def rates_client(tmp_path, raw_cache_dir, reference_db, rates_players_dir, types_file,
+                 seasons_dir, countries_file, monkeypatch):
     """HTTP client over the rates fixture, where team 100's players (90 and 300
     minutes) both sit BELOW the floor — the "season is young" empty state that
     the standard fixture can't produce, since its player clears 450."""
     monkeypatch.setenv(auth.USER_VAR, _USER)
     monkeypatch.setenv(auth.PASSWORD_VAR, _PASSWORD)
     output = tmp_path / "rates_app.db"
-    etl.build(raw_cache_dir, reference_db, output, players_dir=rates_players_dir, types_file=types_file)
+    etl.build(raw_cache_dir, reference_db, output, players_dir=rates_players_dir,
+              types_file=types_file, seasons_dir=seasons_dir, countries_file=countries_file)
     monkeypatch.setattr("app.db.DB_PATH", str(output))
     from app.main import app
     return TestClient(app, headers={"Authorization": _AUTH_HEADER})

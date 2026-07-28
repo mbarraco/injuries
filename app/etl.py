@@ -12,6 +12,8 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_RAW_DIR = os.path.join(BASE, "data", "raw", "sportmonks", "fixtures")
 DEFAULT_PLAYERS_DIR = os.path.join(BASE, "data", "raw", "sportmonks", "players")
 DEFAULT_TYPES_FILE = os.path.join(BASE, "data", "raw", "sportmonks", "types.json")
+DEFAULT_SEASONS_DIR = os.path.join(BASE, "data", "raw", "sportmonks", "seasons")
+DEFAULT_COUNTRIES_FILE = os.path.join(BASE, "data", "raw", "sportmonks", "countries.json")
 DEFAULT_REFERENCE_DB = os.path.join(BASE, "coverage.db")
 DEFAULT_OUT_DB = os.path.join(BASE, "app", "app.db")
 SCHEMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
@@ -105,6 +107,61 @@ def collect_types(reference, types_file):
                 if entry.get("id") is not None:
                     resolved.setdefault(int(entry["id"]), entry.get("name"))
     return sorted(resolved.items())
+
+
+def collect_leagues_and_seasons(reference, seasons_dir, countries_file):
+    """The league and season dimensions, widened from the cached seasons files.
+
+    Same shape of problem as collect_types: coverage.db only holds what
+    `ingest/resolve.py` swept, which is the domestic leagues. The UEFA cups and
+    play-off competitions therefore reached NEITHER dimension, and every absence
+    belonging to one resolved to no competition and no season — 42% of them,
+    measured 2026-07-28. The cached seasons/{league_id}.json files cover every
+    competition (Champions League goes back to 2000 there) and are already on
+    disk, so this is a local repair, not a re-fetch.
+
+    coverage.db is read first and the cache overwrites it: the cache is both
+    wider and more recently fetched, but keeping the fallback means a missing or
+    empty cache degrades to the old behaviour rather than losing rows.
+
+    Returns (leagues, seasons), each ready for executemany.
+    """
+    countries = {}
+    if countries_file and os.path.exists(countries_file):
+        with open(countries_file, encoding="utf-8") as source:
+            countries = {int(row["id"]): row.get("name")
+                         for row in json.load(source) if row.get("id") is not None}
+
+    leagues, seasons = {}, {}
+    for row in reference.execute("SELECT id, league_id, country, league_name, name, is_current "
+                                 "FROM sportmonks_season"):
+        league_id = int(row[1]) if row[1] else None
+        if league_id:
+            leagues.setdefault(league_id, (league_id, row[2], row[3]))
+        # coverage.db has no season dates, hence the trailing Nones.
+        seasons.setdefault(int(row[0]), (int(row[0]), league_id, row[4], row[5], None, None))
+
+    # Files the cache never filled are written as `{}`; they carry no id and are
+    # skipped, leaving whatever coverage.db knows about that league in place.
+    cached = sorted(glob.glob(os.path.join(seasons_dir, "*.json"))) if seasons_dir else []
+    for path in cached:
+        with open(path, encoding="utf-8") as source:
+            document = json.load(source)
+        league_id = document.get("id")
+        if league_id is None:
+            continue
+        leagues[int(league_id)] = (int(league_id), countries.get(document.get("country_id")),
+                                   document.get("name"))
+        for season in document.get("seasons") or []:
+            if season.get("id") is None:
+                continue
+            seasons[int(season["id"])] = (
+                int(season["id"]), int(season.get("league_id") or league_id),
+                season.get("name"), int(bool(season.get("is_current"))),
+                season.get("starting_at"), season.get("ending_at"))
+
+    # Both dicts are keyed by id, so sorting never compares past the first field.
+    return sorted(leagues.values()), sorted(seasons.values())
 
 
 def _stat_total(details, type_id):
@@ -238,7 +295,8 @@ def _write_quality_metrics(connection, absences, rows, category_counts, file_cou
 
 
 def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEFAULT_OUT_DB,
-          players_dir=None, verbose=False, types_file=DEFAULT_TYPES_FILE):
+          players_dir=None, verbose=False, types_file=DEFAULT_TYPES_FILE,
+          seasons_dir=DEFAULT_SEASONS_DIR, countries_file=DEFAULT_COUNTRIES_FILE):
     """Rebuild app.db from cached raw fixtures and resolved reference data.
 
     `players_dir`, when given, is scanned for enriched player JSON to populate
@@ -247,6 +305,9 @@ def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEF
 
     `types_file` widens the type taxonomy beyond the absence-referenced subset
     in coverage.db, so transfer types resolve to names — see collect_types.
+    `seasons_dir` and `countries_file` do the same for the league and season
+    dimensions, which coverage.db holds only the domestic slice of — see
+    collect_leagues_and_seasons.
 
     `verbose` streams per-phase progress to stdout. Off by default so calling
     build() as a library (tests, the app) stays silent; the CLI turns it on.
@@ -271,19 +332,16 @@ def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEF
                                    "SELECT id, name, country, founded, short_code FROM sportmonks_team")])
         connection.executemany("INSERT OR IGNORE INTO injury_type VALUES (?, ?)",
                                collect_types(reference, types_file))
-        seasons = list(reference.execute(
-            "SELECT id, league_id, country, league_name, name, is_current FROM sportmonks_season"))
-        connection.executemany("INSERT OR IGNORE INTO league VALUES (?, ?, ?)",
-                               sorted({(int(row[1]), row[2], row[3]) for row in seasons if row[1]}))
-        connection.executemany("INSERT INTO season VALUES (?, ?, ?, ?)",
-                               [(int(row[0]), int(row[1]) if row[1] else None, row[4], row[5]) for row in seasons])
+        league_rows, season_rows = collect_leagues_and_seasons(reference, seasons_dir, countries_file)
+        connection.executemany("INSERT OR IGNORE INTO league VALUES (?, ?, ?)", league_rows)
+        connection.executemany("INSERT OR IGNORE INTO season VALUES (?, ?, ?, ?, ?, ?)", season_rows)
         connection.executemany("INSERT INTO league_coverage VALUES (?, ?, ?, ?, ?, ?)",
                                [(row[0], row[1], int(row[2]) if row[2] else None, row[3], row[4], row[5])
                                 for row in reference.execute(
                                     "SELECT country, league, sportmonks_id, year_bucket, record_count, tier FROM sportmonks_coverage WHERE run_id = 16")])
 
-        _say(verbose, f"  {len(players)} players · "
-                      f"{len(seasons)} seasons loaded into dimensions")
+        _say(verbose, f"  {len(players)} players · {len(league_rows)} leagues · "
+                      f"{len(season_rows)} seasons loaded into dimensions")
 
         _say(verbose, "[3/5] deriving absence rows …")
         rows, category_counts = [], {}
