@@ -61,12 +61,16 @@ orphaned absences gain both a competition and a season.
 
 ## The season axis
 
-Columns are **season labels, not season ids**. There are 159 season rows but
-only 6 distinct labels among domestic leagues:
+Columns are **season labels, not season ids**. Domestic leagues contribute only
+6 distinct labels (`2024`, `2024/2025`, `2025`, `2025/2026`, `2026`,
+`2026/2027`), but the cups restored by the prerequisite reach back to
+`2000/2001`, giving **37 labels in total** (measured across the cached season
+files).
 
-```
-2024   2024/2025   2025   2025/2026   2026   2026/2027
-```
+37 columns is wide but workable: grids scroll horizontally inside `.table-wrap`
+as elsewhere, and only the cup rows populate the early columns — which is
+itself the coverage story these tables exist to tell. Season ids would instead
+give 255 near-empty columns, since ids are per-league.
 
 Season ids are per-league, so using them would produce 159 near-empty columns
 where each club appears in only its own league's seasons. Labels collapse that
@@ -113,10 +117,17 @@ player.
 | `minutes` | `player_season` | Players with recorded playing time; the denominator behind injury rates |
 | `fixtures` | new `fixture_coverage` table | Not otherwise present in `app.db` |
 
-**Transfers carry no `season_id`** — only a date. They are bucketed into season
-windows by date, which is an approximation, not a lookup: league calendars
-differ, so a July move sits ambiguously between two seasons. The UI states this
-where transfer grids appear rather than presenting the bucketing as exact.
+**Transfers carry no `season_id`** — only a date. They are bucketed by matching
+that date against real season windows: every one of the 255 cached seasons
+carries `starting_at` and `ending_at` (verified), so the `season` table gains
+those two columns and bucketing becomes a date-range join rather than a guess
+about league calendars.
+
+It remains an approximation at the edges — a July move can fall between one
+season ending and the next beginning, and a player's move is not intrinsically
+owned by one competition's calendar — so transfer grids say so in the UI rather
+than presenting the bucketing as exact. Transfers matching no window land in
+the "unattributed" column.
 
 **Fixtures are not in `app.db` at all** — they live only in the raw cache's
 9,866 files. A new table is populated during the ETL's existing scan:
