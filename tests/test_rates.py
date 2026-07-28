@@ -79,3 +79,22 @@ def test_rates_are_scoped_to_one_season(rates_connection):
     injury risk, so a season is required rather than optional."""
     with pytest.raises(TypeError):
         queries.player_rates(rates_connection)
+
+
+def test_empty_rates_explain_a_young_season_not_missing_data(rates_client):
+    """Players with minutes but none past the floor is "not yet", not "no data".
+
+    Only 12 of 53 current seasons currently have anyone above 450 minutes
+    because 2026/2027 has barely started, so this is the state most team pages
+    are in — it must not read as a broken feature.
+    """
+    body = rates_client.get("/team/100").text
+    assert "Early in a season that is expected" in body
+    assert "recorded minutes" in body
+
+
+def test_empty_rates_say_so_plainly_when_there_are_no_minutes_at_all(client):
+    """The other branch: nothing recorded, so there is nothing to wait for."""
+    body = client.get("/team/200").text
+    assert "No minutes are recorded" in body
+    assert "Early in a season" not in body

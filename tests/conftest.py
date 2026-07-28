@@ -169,3 +169,17 @@ def client(tmp_path, raw_cache_dir, reference_db, players_dir, monkeypatch):
     monkeypatch.setattr("app.db.DB_PATH", str(output))
     from app.main import app
     return TestClient(app, headers={"Authorization": _AUTH_HEADER})
+
+
+@pytest.fixture
+def rates_client(tmp_path, raw_cache_dir, reference_db, rates_players_dir, monkeypatch):
+    """HTTP client over the rates fixture, where team 100's players (90 and 300
+    minutes) both sit BELOW the floor — the "season is young" empty state that
+    the standard fixture can't produce, since its player clears 450."""
+    monkeypatch.setenv(auth.USER_VAR, _USER)
+    monkeypatch.setenv(auth.PASSWORD_VAR, _PASSWORD)
+    output = tmp_path / "rates_app.db"
+    etl.build(raw_cache_dir, reference_db, output, players_dir=rates_players_dir)
+    monkeypatch.setattr("app.db.DB_PATH", str(output))
+    from app.main import app
+    return TestClient(app, headers={"Authorization": _AUTH_HEADER})

@@ -56,6 +56,23 @@
      hx-swap="outerHTML" hx-push-url="true">{{ label }}</a>
 {% endmacro %}
 
+{# Why a rate table is empty — "not yet" and "no data" are different states.
+   Early in a season players have minutes but none has crossed the floor, which
+   is expected rather than missing data. Saying only "no player reached 450
+   minutes" reads as a broken feature: at the time of writing only 12 of 53
+   current seasons have anyone above the floor, because 2026/2027 has barely
+   started. `scope` is a phrase like "for this club this season". #}
+{% macro rate_empty_state(rates, scope) %}
+  {#- Sentences kept on single lines: wrapping them puts newlines mid-phrase in
+      the rendered HTML, which breaks substring assertions and reads oddly in
+      any client that collapses whitespace differently. -#}
+  {%- if rates.below_floor -%}
+    <p class="empty">{{ rates.below_floor }} player{{ '' if rates.below_floor == 1 else 's' }} {{ 'has' if rates.below_floor == 1 else 'have' }} recorded minutes {{ scope }}, but none has reached the {{ rates.minutes_floor }}-minute floor a rate needs. Early in a season that is expected — rates appear as minutes accumulate.</p>
+  {%- else -%}
+    <p class="empty">No minutes are recorded {{ scope }} yet, so no rate can be calculated.</p>
+  {%- endif -%}
+{% endmacro %}
+
 {% macro empty_state(message) %}
 <p class="empty">{{ message }}</p>
 {% endmacro %}
