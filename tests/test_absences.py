@@ -36,3 +36,22 @@ def test_absences_filter_and_pager_are_htmx_enhanced(client):
     assert 'id="absence-results"' in response.text
     assert 'hx-target="#absence-results"' in response.text
     assert 'method="get"' in response.text
+
+
+def test_paging_preserves_the_active_filter(client):
+    """Pager links must EXTEND the query string, not replace it.
+
+    A bare href="?page=2" drops every other param, so the route's defaults take
+    over: paging through 'suspended' silently returned injuries while the
+    dropdown still read 'Suspended'. Uses page=2 so the Prev link renders — the
+    fixture has too few rows to produce a Next link.
+    """
+    import re
+
+    response = client.get("/absences", params={"category": "suspended", "page": 2})
+    pager = re.search(r'<div class="pager">.*?href="([^"]+)"', response.text, re.S)
+    assert pager, "expected a pager link on page 2"
+
+    href = pager.group(1)
+    assert "category=suspended" in href, f"filter dropped from pager link: {href}"
+    assert "page=1" in href

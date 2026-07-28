@@ -41,6 +41,21 @@
   {%- endif -%}
 {% endmacro %}
 
+{# Pager link that KEEPS the current filters.
+   include_query_params merges into the existing query string; a bare
+   href="?page=2" replaces it wholesale, so every active filter is dropped and
+   the route's defaults silently take over — you'd page from "suspended" into
+   "injury" while the dropdown still read "Suspended".
+   href and hx-get are emitted together here so the no-JS and htmx paths can
+   never drift apart. #}
+{% macro page_link(request, page, label, target='#absence-results') %}
+  {%- set url = request.url.include_query_params(page=page) -%}
+  <a href="{{ url.path }}?{{ url.query }}"
+     hx-get="{{ url.path }}?{{ url.query }}"
+     hx-target="{{ target }}" hx-select="{{ target }}"
+     hx-swap="outerHTML" hx-push-url="true">{{ label }}</a>
+{% endmacro %}
+
 {% macro empty_state(message) %}
 <p class="empty">{{ message }}</p>
 {% endmacro %}
