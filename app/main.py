@@ -77,6 +77,21 @@ def api_player(player_id: int, _: str = Depends(verify_auth)):
         return queries.player_timeline(connection, player_id)
 
 
+@app.get("/api/search")
+def api_search(q: str = "", _: str = Depends(verify_auth)):
+    with _connection() as connection:
+        return {"results": queries.search(connection, q)}
+
+
+@app.get("/search", response_class=HTMLResponse)
+def page_search(request: Request, q: str = "", _: str = Depends(verify_auth)):
+    """The htmx fragment behind the header search box. Not part of the JSON
+    API — external callers should use /api/search instead."""
+    with _connection() as connection:
+        results = queries.search(connection, q)
+    return templates.TemplateResponse(request, "partials/search_results.html", {"results": results})
+
+
 @app.get("/", response_class=HTMLResponse)
 def page_coverage(request: Request, _: str = Depends(verify_auth)):
     with _connection() as connection:

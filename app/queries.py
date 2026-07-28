@@ -377,6 +377,27 @@ def types_index(connection):
     """)
 
 
+def search(connection, query, per_kind=8):
+    """Prefix search across players, teams and leagues, for the global search box.
+
+    Prefix (`q%`) rather than substring (`%q%`) so SQLite can use the name
+    indexes/primary sort order instead of scanning every row. Queries under 2
+    characters return [] — a 1-char prefix matches thousands of rows and is
+    never a useful result set.
+    """
+    if not query or len(query.strip()) < 2:
+        return []
+    like = f"{query.strip()}%"
+    results = []
+    for kind, sql in (
+        ("player", "SELECT id, name FROM player WHERE name LIKE ? COLLATE NOCASE ORDER BY name LIMIT ?"),
+        ("team",   "SELECT id, name FROM team   WHERE name LIKE ? COLLATE NOCASE ORDER BY name LIMIT ?"),
+        ("league", "SELECT id, name FROM league WHERE name LIKE ? COLLATE NOCASE ORDER BY name LIMIT ?"),
+    ):
+        results.extend({**row, "kind": kind} for row in rows(connection, sql, (like, per_kind)))
+    return results
+
+
 def type_detail(connection, type_id):
     """An injury type plus everything reachable from it."""
     injury_type = connection.execute("SELECT * FROM injury_type WHERE id = ?", (type_id,)).fetchone()

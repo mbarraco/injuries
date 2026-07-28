@@ -25,3 +25,14 @@ def test_api_injuries_still_defaults_to_injury_category(client):
 def test_api_absences_defaults_to_every_category(client):
     response = client.get("/api/absences")
     assert response.json()["total"] == 3  # 2 injury + 1 suspended, from raw_cache_dir
+
+
+def test_absences_filter_and_pager_are_htmx_enhanced(client):
+    """The filter form and pager links must carry hx-* attributes targeting
+    #absence-results, so htmx can swap just that fragment instead of a full
+    reload — while the plain method="get"/href attributes keep the no-JS path
+    working unchanged."""
+    response = client.get("/absences")
+    assert 'id="absence-results"' in response.text
+    assert 'hx-target="#absence-results"' in response.text
+    assert 'method="get"' in response.text

@@ -19,6 +19,11 @@ CREATE TABLE league (
     name TEXT
 );
 
+-- Prefix search (`name LIKE 'q%' COLLATE NOCASE`) needs a NOCASE index to use
+-- an index range scan instead of a full table scan; a plain index can't serve
+-- a case-insensitive LIKE.
+CREATE INDEX idx_league_name ON league(name COLLATE NOCASE);
+
 CREATE TABLE season (
     id INTEGER PRIMARY KEY,
     league_id INTEGER REFERENCES league(id),
@@ -34,6 +39,8 @@ CREATE TABLE team (
     short_code TEXT
 );
 
+CREATE INDEX idx_team_name ON team(name COLLATE NOCASE);
+
 CREATE TABLE player (
     id INTEGER PRIMARY KEY,
     name TEXT,
@@ -44,6 +51,8 @@ CREATE TABLE player (
     height_cm INTEGER,
     weight_kg INTEGER
 );
+
+CREATE INDEX idx_player_name ON player(name COLLATE NOCASE);
 
 CREATE TABLE injury_type (
     id INTEGER PRIMARY KEY,
