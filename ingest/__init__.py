@@ -1,7 +1,10 @@
-"""Repeatable, throttle-aware Sportmonks ingestion.
+"""Multi-vendor ingestion.
 
-- sportmonks_client: shared HTTP layer (per-entity quota, retries, cache).
-- resolve:            entity id -> name resolution into coverage.db.
-- backfill:           wide date-range fixture fetch + per-league watermark.
-- sync:               incremental fetch from the watermark onward.
+- core:        vendor-neutral primitives (raw-JSON cache, month arithmetic).
+- sportmonks:  fixtures -> `sidelined` absences, per-entity hourly quotas.
+- apifootball: first-class `/injuries` endpoint, global daily + per-minute quota.
+
+Each vendor package owns its own client, paths and runners. They share the
+cache discipline — fetch once, write raw to disk, never re-fetch — and nothing
+else, because their rate-limit models have no honest common abstraction.
 """

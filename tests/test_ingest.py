@@ -6,9 +6,10 @@ stubbed transport), watermark advancement, and sync's window computation.
 """
 import time
 
-from ingest import backfill, enrich, months, sync
-from ingest.backfill import RICH_FIXTURE_INCLUDE
-from ingest.sportmonks_client import FIXTURE, SportmonksClient
+from ingest.core import months
+from ingest.sportmonks import backfill, enrich, sync
+from ingest.sportmonks.backfill import RICH_FIXTURE_INCLUDE
+from ingest.sportmonks.client import FIXTURE, SportmonksClient
 
 
 # --------------------------------------------------------------------------- #
@@ -145,7 +146,8 @@ def test_await_quota_sleeps_until_reset_when_exhausted(monkeypatch):
     client = SportmonksClient("token")
     _seed_quota(client, FIXTURE, remaining=0, resets_in_seconds=3600)
     slept = []
-    monkeypatch.setattr("ingest.sportmonks_client.time.sleep", slept.append)
+    # String target: no import checker catches this one when the module moves.
+    monkeypatch.setattr("ingest.sportmonks.client.time.sleep", slept.append)
 
     waited = client.await_quota(FIXTURE)
     assert waited > 3600 and slept and slept[0] == waited  # ~reset + buffer, no real delay

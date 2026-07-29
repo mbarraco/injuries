@@ -19,3 +19,6 @@ venv/
 
 data/
 data/*
+# Local archive of the raw cache — never commit (352MB)
+data.zip
+*.zip
