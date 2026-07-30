@@ -45,8 +45,12 @@ breadcrumbs that its siblings already have.
 2. **Full URL peer treatment**: Sportmonks moves to `/sportmonks/*`, matching
    `/af/*`; `/` becomes a neutral landing page presenting both as equals.
 3. **Clean cutover, no legacy redirects** for pages. `/api/*` (the JSON
-   contract) is the one frozen exception — `AGENTS.md` states external callers
-   depend on it; it does not move, gain a prefix, or change behavior.
+   contract) is the one frozen exception. `AGENTS.md`'s actual invariant is
+   scoped to one route — *"`/api/injuries` returns injuries only by default.
+   External callers depend on it"* — this design extends that same caution to
+   the whole `/api/*` family on the reasonable assumption that any of them
+   could have an external caller; it does not move, gain a prefix, or change
+   behavior, for any route under it.
 4. Add `/af/coverage` (peer of `/coverage`).
 5. Add `/sportmonks/transfers` (peer of `/af/transfers`) and `/af/reasons`
    (peer of `/types`). Leave `/admin` (coverage matrices) Sportmonks-only —
@@ -122,13 +126,25 @@ context variable already passed to every template). On the neutral landing
 page, where there is no current vendor, the search box is omitted entirely
 rather than defaulting to either side.
 
+**This requires a naming step that doesn't exist yet, called out explicitly
+rather than assumed.** Only API-Football's `active` values are currently
+prefixed (`af-dashboard`, `af-players`, …) — Sportmonks' are bare (`dashboard`,
+`players`, `types`, …), a leftover of Sportmonks being the original,
+unprefixed app. Deriving both the search target and the `data-vendor` body
+attribute (below) from `active` requires every Sportmonks route handler's
+context dict to gain a `sportmonks-` prefix on its `active` value — mechanical
+but wide-reaching, same shape as the macro migration below, and should be its
+own reviewable step in the implementation plan for the same reason.
+
 ## Visual identity
 
 One mechanism, reusing the existing design-token system in `style.css` (the
 same one that already drives light/dark via `:root[data-theme]`):
 
 - A `data-vendor="sportmonks"` or `data-vendor="af"` attribute is set on
-  `<body>` by whichever router served the page. An override block re-points
+  `<body>` in `base.html`, derived from the same `active` prefix the
+  vendor-scoped search uses (see above) — one signal, two consumers, rather
+  than each route handler passing a separate flag. An override block re-points
   `--accent` (and only `--accent`) for each value — every component that
   already reads `var(--accent)` (links, active nav state, stat values, filter
   buttons, focus rings) repaints automatically. **No new components, no
@@ -155,9 +171,17 @@ persistent banner competing for attention.
 Peer of `/types` + `/type/{id}`. New `af_queries.reasons_index()` (mirrors
 `types_index()`: reason, category, row_count, ordered by volume) and
 `reason_detail(connection, reason)` (mirrors `type_detail()`: players
-affected via `af.af_entity_link`, by-position breakdown reusing the existing
-`by_position()` query filtered to this reason). Carries `GRAIN_NOTE`, same as
-every other `/af/*` page that surfaces absence counts.
+affected via `af.af_entity_link`, plus a by-position breakdown).
+
+**Correction from spec review:** `type_detail()` does not call the standalone
+`by_position()` — it has its own inline query filtered by `type_id`
+(`queries.py:759`), and `af_queries.by_position()` takes no filter parameter
+today. `reason_detail()` needs the same treatment as `type_detail()`: its own
+inline query, `WHERE reason = ?` joined through `af_player_season` for
+position, written fresh rather than reusing `by_position()` unmodified.
+
+Carries `GRAIN_NOTE`, same as every other `/af/*` page that surfaces absence
+counts.
 
 ### `/af/coverage`
 
