@@ -72,3 +72,65 @@ def test_data_vendor_is_absent_on_the_neutral_landing_page(both_vendors_client):
 
 def test_search_box_is_absent_from_the_neutral_landing_page(both_vendors_client):
     assert 'class="global-search"' not in both_vendors_client.get("/").text
+
+
+# --------------------------------------------------------------------------- #
+# New pages, added to bring API-Football and Sportmonks to matching hierarchies.
+# --------------------------------------------------------------------------- #
+def test_af_coverage_page_renders(af_client):
+    response = af_client.get("/af/coverage")
+    assert response.status_code == 200
+    assert "Coverage" in response.text
+
+
+def test_af_reasons_index_lists_reasons(af_client):
+    response = af_client.get("/af/reasons")
+    assert response.status_code == 200
+    assert "Hamstring Injury" in response.text
+
+
+def test_af_reason_detail_renders_for_a_known_reason(af_client):
+    """af_reason has no numeric id -- the reason string IS the key, so the URL
+    takes a url-encoded string, not an integer."""
+    response = af_client.get("/af/reason/Hamstring Injury")
+    assert response.status_code == 200
+    assert "Hamstring Injury" in response.text
+
+
+def test_af_reason_detail_404s_for_an_unknown_reason(af_client):
+    assert af_client.get("/af/reason/Nonexistent Reason").status_code == 404
+
+
+def test_af_search_page_exists_and_is_af_scoped(af_client):
+    response = af_client.get("/af/search", params={"q": "Alp"})
+    assert response.status_code == 200
+
+
+def test_sportmonks_transfers_page_renders(client):
+    response = client.get("/sportmonks/transfers")
+    assert response.status_code == 200
+    assert "Transfers" in response.text
+
+
+# --------------------------------------------------------------------------- #
+# Consistency fixes: grain-note banners and breadcrumbs used to be present on
+# some /af/* pages and missing on others with no reason for the difference.
+# --------------------------------------------------------------------------- #
+def test_grain_note_appears_on_every_af_page_showing_absence_counts(af_client):
+    # A substring free of characters Jinja HTML-escapes (the full GRAIN_NOTE
+    # contains an apostrophe, which renders as &#39; — checking the whole
+    # string verbatim would fail on escaping, not on the note being present).
+    marker = "no spell identifier"
+    for path in ("/af/analytics", "/af/leagues", "/af/league/10",
+                 "/af/teams", "/af/team/100"):
+        response = af_client.get(path)
+        assert response.status_code == 200, path
+        assert marker in response.text, f"{path} is missing the grain note"
+
+
+def test_breadcrumbs_present_on_every_remaining_detail_page(af_client, client):
+    for c, path in ((af_client, "/af/player/1"), (af_client, "/af/team/100"),
+                    (af_client, "/af/league/10"), (client, "/sportmonks/player/5001")):
+        response = c.get(path)
+        assert response.status_code == 200, path
+        assert 'aria-label="Breadcrumb"' in response.text, f"{path} has no breadcrumbs"

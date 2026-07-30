@@ -359,6 +359,56 @@ def _transfer_summary(transfers):
     }
 
 
+# --------------------------------------------------------------------------- #
+# Transfers — the peer of API-Football's /af/transfers. Sportmonks' transfer
+# rows already carry a clean type_id/amount, so this is a simpler aggregate
+# than af's fee-format parsing; the shape (overview, category breakdown,
+# by-year) mirrors af_queries.transfer_overview/transfer_categories/
+# transfers_by_year for a matching page, not because the underlying data needs
+# the same treatment.
+# --------------------------------------------------------------------------- #
+TRANSFERS_PAGE_LIMIT = 50
+
+
+def transfers_index(connection, page=1, per_page=TRANSFERS_PAGE_LIMIT):
+    total = _count(connection, "SELECT COUNT(*) FROM transfer")
+    offset = (page - 1) * per_page
+    items = rows(connection, f"""
+        {_TRANSFER_SELECT}
+        ORDER BY transfer.date DESC LIMIT ? OFFSET ?
+    """, (per_page, offset))
+
+    categories = rows(connection, f"""
+        SELECT COALESCE(injury_type.name, ?) AS category, COUNT(*) AS moves,
+               COUNT(transfer.amount) AS fee_rows,
+               COALESCE(SUM(transfer.amount), 0) AS fee_total
+        FROM transfer LEFT JOIN injury_type ON injury_type.id = transfer.type_id
+        GROUP BY category ORDER BY moves DESC
+    """, (UNNAMED_TRANSFER_TYPE,))
+
+    by_year = rows(connection, """
+        SELECT SUBSTR(date, 1, 4) AS year, COUNT(*) AS moves
+        FROM transfer WHERE date IS NOT NULL AND date <> ''
+        GROUP BY year ORDER BY year DESC LIMIT 40
+    """)
+
+    earliest, latest = connection.execute(
+        "SELECT MIN(date), MAX(date) FROM transfer WHERE date IS NOT NULL AND date <> ''"
+    ).fetchone()
+    fee_rows, fee_total = connection.execute(
+        "SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM transfer WHERE amount IS NOT NULL"
+    ).fetchone()
+
+    return {
+        "items": items, "total": total, "shown": len(items), "page": page, "per_page": per_page,
+        "categories": categories, "by_year": by_year,
+        "overview": {
+            "moves": total, "earliest": earliest, "latest": latest,
+            "fee_rows": fee_rows, "fee_total": fee_total,
+        },
+    }
+
+
 def leagues_index(connection):
     return rows(connection, """
         SELECT league.id, league.country, league.name,

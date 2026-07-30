@@ -56,6 +56,57 @@ def reason_categories(connection):
     """)
 
 
+# --------------------------------------------------------------------------- #
+# Reasons — the peer of Sportmonks' injury Types (queries.types_index /
+# type_detail). One real schema divergence carried through rather than papered
+# over: af_reason has no numeric id, the reason STRING is its own primary key
+# (schema_af.sql), so callers key on the reason text itself, not an integer.
+# --------------------------------------------------------------------------- #
+AF_REASON_PLAYER_LIMIT = 50
+
+
+def reasons_index(connection):
+    return rows(connection, """
+        SELECT reason, category, row_count
+        FROM af_reason ORDER BY row_count DESC
+    """)
+
+
+def reason_detail(connection, reason):
+    """A reason plus everything reachable from it — mirrors type_detail()'s
+    shape. Does NOT reuse by_position() unmodified: that function takes no
+    filter parameter, so the position breakdown here is its own inline query,
+    following the same pattern type_detail() itself uses for its own
+    (unfiltered-elsewhere) position breakdown."""
+    reason_row = connection.execute(
+        "SELECT * FROM af_reason WHERE reason = ?", (reason,)).fetchone()
+    if reason_row is None:
+        return None
+    return {
+        "reason": dict(reason_row),
+        "players": rows(connection, """
+            SELECT p.id, p.name, COUNT(*) AS occurrences
+            FROM af_confirmed_absence a
+            JOIN af_player p ON p.id = a.player_id
+            WHERE a.reason = ?
+            GROUP BY p.id, p.name ORDER BY occurrences DESC LIMIT ?
+        """, (reason, AF_REASON_PLAYER_LIMIT)),
+        "players_total": connection.execute(
+            "SELECT COUNT(DISTINCT player_id) FROM af_confirmed_absence WHERE reason = ?",
+            (reason,)).fetchone()[0],
+        "player_limit": AF_REASON_PLAYER_LIMIT,
+        "positions": rows(connection, """
+            SELECT COALESCE(ps.position, 'Unknown') AS position, COUNT(DISTINCT a.id) AS absences
+            FROM af_confirmed_absence a
+            LEFT JOIN af_player_season ps
+              ON ps.player_id = a.player_id AND ps.league_id = a.league_id AND ps.season = a.season
+            WHERE a.reason = ?
+            GROUP BY position ORDER BY absences DESC, position
+        """, (reason,)),
+        "grain_note": GRAIN_NOTE,
+    }
+
+
 AF_DASHBOARD_TOP = 5
 
 

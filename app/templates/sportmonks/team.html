@@ -2,7 +2,7 @@
 {% block title %}{{ team.name }}{% endblock %}{% block heading %}{{ team.name }}{% endblock %}
 {% block subtitle %}{{ team.country or 'Country unknown' }}{% endblock %}
 {% block content %}
-{{ macros.breadcrumbs([{'label': 'Home', 'href': '/'}, {'label': 'Teams', 'href': '/teams'}, {'label': team.name}]) }}
+{{ macros.breadcrumbs([{'label': 'Home', 'href': '/sportmonks/'}, {'label': 'Teams', 'href': '/sportmonks/teams'}, {'label': team.name}]) }}
 
 <section><h2>Leagues</h2><ul>
 {% for row in leagues %}<li>{{ sm.entity_link('league', row.id, row.name) }}</li>{% endfor %}

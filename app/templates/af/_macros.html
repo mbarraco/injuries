@@ -6,7 +6,7 @@
 
 {% macro af_entity_link(kind, id, label) %}
   {%- if id and label -%}
-    <a href="/af/{{ kind }}/{{ id }}" class="entity-link">{{ label }}</a>
+    <a href="/af/{{ kind }}/{{ id | urlencode }}" class="entity-link">{{ label }}</a>
   {%- elif label -%}
     <span class="entity-unresolved" title="Not in our data">{{ label }}</span>
   {%- else -%}

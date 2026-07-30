@@ -169,6 +169,13 @@ def page_type(request: Request, type_id: int, _: str = Depends(verify_auth)):
     return templates.TemplateResponse(request, "sportmonks/type.html", {"active": "sportmonks-types", **detail})
 
 
+@router.get("/transfers", response_class=HTMLResponse)
+def page_transfers(request: Request, page: int = 1, _: str = Depends(verify_auth)):
+    with _connection() as connection:
+        return templates.TemplateResponse(request, "sportmonks/transfers.html", {
+            "active": "sportmonks-transfers", **queries.transfers_index(connection, page=page)})
+
+
 @router.get("/admin", response_class=HTMLResponse)
 def page_admin(request: Request, _: str = Depends(verify_auth)):
     return templates.TemplateResponse(request, "sportmonks/admin/index.html",

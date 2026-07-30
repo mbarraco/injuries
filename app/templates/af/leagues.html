@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% import "af/_macros.html" as af %}{% import "macros.html" as macros %}{% block title %}API-Football Leagues{% endblock %}{% block heading %}Competitions{% endblock %}
 {% block subtitle %}{{ leagues|length }} competitions.{% endblock %}
-{% block content %}<section><div class="table-wrap"><table><thead><tr><th>League</th><th>Country</th><th class="num">Seasons with injury data</th><th class="num">Confirmed absences</th></tr></thead><tbody>
+{% block content %}{{ af.grain_note(grain_note) }}<section><div class="table-wrap"><table><thead><tr><th>League</th><th>Country</th><th class="num">Seasons with injury data</th><th class="num">Confirmed absences</th></tr></thead><tbody>
 {% for row in leagues %}<tr><td>{{ af.af_entity_link('league', row.id, row.name) }}</td><td>{{ row.country or '—' }}</td><td class="num">{{ row.seasons_with_injuries }}</td><td class="num">{{ '{:,}'.format(row.absences) }}</td></tr>{% endfor %}
 </tbody></table></div>{{ macros.empty_state('No competitions recorded.') if not leagues }}</section>{% endblock %}

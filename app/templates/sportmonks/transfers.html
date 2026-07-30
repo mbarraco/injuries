@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "sportmonks/_macros.html" as sm %}
+{% block title %}Transfers{% endblock %}{% block heading %}Transfers{% endblock %}
+{% block subtitle %}{{ macros.count_heading('', shown, total) }} shown, newest first.{% endblock %}
+{% block content %}
+
+<section><div class="stat-row">
+{{ macros.stat('{:,}'.format(overview.moves), 'Distinct moves') }}
+{{ macros.stat(overview.earliest[:4] if overview.earliest else '—', 'Earliest') }}
+{{ macros.stat(overview.latest[:4] if overview.latest else '—', 'Latest') }}
+{{ macros.stat('{:,}'.format(overview.fee_rows), 'Moves with a disclosed fee') }}
+</div></section>
+
+<section><h2>By category</h2><div class="card"><div class="table-wrap">
+<table><thead><tr><th>Category</th><th class="num">Moves</th><th class="num">With a fee</th><th class="num">Fee total</th></tr></thead><tbody>
+{% for row in categories %}<tr>
+  <td>{{ row.category }}</td>
+  <td class="num">{{ '{:,}'.format(row.moves) }}</td>
+  <td class="num">{{ '{:,}'.format(row.fee_rows) }}</td>
+  <td class="num">{% if row.fee_total %}€{{ '{:,}'.format(row.fee_total) }}{% else %}—{% endif %}</td>
+</tr>{% endfor %}
+</tbody></table></div>
+<p class="note">Most moves in every category disclose no fee, so a fee total is a floor over the subset that does — never that category's market value.</p>
+</div></section>
+
+<section><h2>Moves per year</h2><div class="card"><div class="table-wrap">
+<table><thead><tr><th>Year</th><th class="num">Moves</th></tr></thead><tbody>
+{% for row in by_year %}<tr><td>{{ row.year }}</td><td class="num">{{ '{:,}'.format(row.moves) }}</td></tr>{% endfor %}
+</tbody></table></div></section>
+
+<section>{{ macros.count_heading('Recent transfers', shown, total) }}<div class="table-wrap">
+<table><thead><tr><th>Date</th><th>Player</th><th>Type</th><th>From</th><th>To</th><th class="num">Fee</th></tr></thead><tbody>
+{% for row in items %}<tr>
+  <td>{{ row.date or '—' }}</td>
+  <td>{{ sm.entity_link('player', row.player_id, row.player) }}</td>
+  <td>{{ sm.transfer_type(row) }}</td>
+  <td>{{ sm.entity_link('team', row.from_team_id, row.from_team) }}</td>
+  <td>{{ sm.entity_link('team', row.to_team_id, row.to_team) }}</td>
+  <td class="num">{{ sm.transfer_fee(row) }}</td>
+</tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No transfers recorded.') if not items }}</section>
+
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "af/_macros.html" as af %}
+{% block title %}{{ reason.reason }}{% endblock %}{% block heading %}{{ reason.reason }}{% endblock %}
+{% block subtitle %}{{ reason.category }} · {{ '{:,}'.format(reason.row_count) }} rows{% if reason.body_part %} · {{ reason.body_part }}{% endif %}{% endblock %}
+{% block content %}
+{{ macros.breadcrumbs([{'label': 'Home', 'href': '/'}, {'label': 'Reasons', 'href': '/af/reasons'}, {'label': reason.reason}]) }}
+
+<section>{{ macros.count_heading('Players affected', players|length, players_total) }}<div class="table-wrap"><table><thead><tr><th>Player</th><th class="num">Occurrences</th></tr></thead><tbody>
+{% for row in players %}<tr><td>{{ af.af_entity_link('player', row.id, row.name) }}</td><td class="num">{{ row.occurrences }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No players recorded for this reason.') if not players }}</section>
+
+<section><h2>By position</h2><div class="table-wrap"><table><thead><tr><th>Position</th><th class="num">Absences</th></tr></thead><tbody>
+{% for row in positions %}<tr><td>{{ row.position }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No position data recorded for this reason.') if not positions }}</section>
+{{ af.grain_note(grain_note) }}
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "af/_macros.html" as af %}
+{% block title %}Coverage & Quality{% endblock %}
+{% block heading %}Coverage &amp; Data Quality{% endblock %}
+{% block subtitle %}What this dataset contains, how it was verified, and where its limits are.{% endblock %}
+{% block content %}
+
+<section><h2>Dataset at a glance</h2><div class="stat-row">
+  {{ macros.stat('{:,}'.format(overview.absences), 'Confirmed absences') }}
+  {{ macros.stat('{:,}'.format(overview.injury_rows), 'Injury rows') }}
+  {{ macros.stat('{:,}'.format(overview.players), 'Players') }}
+  {{ macros.stat('{:,}'.format(overview.teams), 'Teams') }}
+  {{ macros.stat('{:,}'.format(overview.leagues), 'Competitions') }}
+  {{ macros.stat(overview.earliest_season ~ '–' ~ overview.latest_season, 'Seasons') }}
+</div></section>
+
+<section><div class="card banner"><p><strong>This vendor's coverage caveat is a different shape from Sportmonks', not a smaller version of the same one.</strong> Sportmonks' limit is a backfill ramp: older years genuinely have fewer records because the vendor added history gradually, so cross-year counts there measure backfill, not football. This vendor's limit is <strong>grain</strong>: every row is one player missing one fixture, with no spell identifier — a single injury spanning 8 matches is 8 rows here, and there is no way to collapse them back into "one injury" without guessing a gap threshold. {{ af.grain_note(overview.grain_note) }}</p></div></section>
+
+<section><h2>Measured quality</h2><div class="table-wrap"><table><thead><tr><th>Metric</th><th class="num">Value</th><th>Detail</th></tr></thead><tbody>
+{% for metric in quality %}<tr><td>{{ metric.metric }}</td><td class="num">{{ metric.value }}</td><td>{{ metric.detail or '—' }}</td></tr>{% endfor %}
+</tbody></table></div></section>
+
+<section><h2>Known gaps</h2><div class="card gaps"><ul>
+<li><strong>No spell identifier.</strong> Absence counts here are (player, fixture) appearances; they are not comparable row-for-row with Sportmonks' <code>injury</code> view, which counts whole spells.</li>
+<li><strong>`Missing Fixture` vs `Questionable` must never be summed.</strong> One is a confirmed absence, the other a doubt that may not have materialised — see the confirmed-vs-questionable split above.</li>
+<li><strong>Players injured for a whole season have no minutes denominator.</strong> They are still counted in every absence total; their rate is undefined, not zero.</li>
+<li><strong>Transfer history is NOT bounded by these seasons.</strong> Unlike every table above, <code>af_transfer</code> reaches back decades further than the vendor's fixture/injury coverage — see <a href="/af/transfers">Transfers</a>.</li>
+</ul></div></section>
+{% endblock %}

@@ -136,6 +136,7 @@ def page_analytics(request: Request, _: str = Depends(verify_auth)):
             "by_reason": af_queries.by_reason(connection),
             "by_league": af_queries.by_league(connection),
             "by_month": af_queries.by_month(connection),
+            "grain_note": af_queries.GRAIN_NOTE,
         })
 
 
@@ -150,11 +151,22 @@ def page_transfers(request: Request, _: str = Depends(verify_auth)):
         })
 
 
+@router.get("/coverage", response_class=HTMLResponse)
+def page_coverage(request: Request, _: str = Depends(verify_auth)):
+    with _connection() as connection:
+        return templates.TemplateResponse(request, "af/coverage.html", {
+            "active": "af-coverage",
+            "overview": af_queries.overview(connection),
+            "quality": af_queries.quality_metrics(connection),
+        })
+
+
 @router.get("/leagues", response_class=HTMLResponse)
 def page_leagues(request: Request, _: str = Depends(verify_auth)):
     with _connection() as connection:
-        return templates.TemplateResponse(request, "af/leagues.html",
-                                          {"active": "af-leagues", "leagues": af_queries.leagues_index(connection)})
+        return templates.TemplateResponse(request, "af/leagues.html", {
+            "active": "af-leagues", "leagues": af_queries.leagues_index(connection),
+            "grain_note": af_queries.GRAIN_NOTE})
 
 
 @router.get("/league/{league_id}", response_class=HTMLResponse)
@@ -163,7 +175,31 @@ def page_league(request: Request, league_id: int, _: str = Depends(verify_auth))
         detail = af_queries.league_detail(connection, league_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="League not found")
-    return templates.TemplateResponse(request, "af/league.html", {"active": "af-leagues", **detail})
+    return templates.TemplateResponse(request, "af/league.html", {
+        "active": "af-leagues", "grain_note": af_queries.GRAIN_NOTE,
+        "breadcrumbs": [{"href": "/", "label": "Home"},
+                        {"href": "/af/leagues", "label": "Leagues"},
+                        {"label": detail["league"]["name"]}],
+        **detail})
+
+
+@router.get("/reasons", response_class=HTMLResponse)
+def page_reasons(request: Request, _: str = Depends(verify_auth)):
+    with _connection() as connection:
+        return templates.TemplateResponse(request, "af/reasons.html",
+                                          {"active": "af-reasons", "reasons": af_queries.reasons_index(connection)})
+
+
+@router.get("/reason/{reason}", response_class=HTMLResponse)
+def page_reason(request: Request, reason: str, _: str = Depends(verify_auth)):
+    """`reason` is a URL-encoded free-text string, not an integer -- af_reason
+    has no numeric id, the reason text itself is the vendor's own key
+    (schema_af.sql)."""
+    with _connection() as connection:
+        detail = af_queries.reason_detail(connection, reason)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Reason not found")
+    return templates.TemplateResponse(request, "af/reason.html", {"active": "af-reasons", **detail})
 
 
 @router.get("/players", response_class=HTMLResponse)
@@ -179,14 +215,20 @@ def page_player(request: Request, player_id: int, _: str = Depends(verify_auth))
         detail = af_queries.player_detail(connection, player_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="Player not found")
-    return templates.TemplateResponse(request, "af/player.html", {"active": "af-players", **detail})
+    return templates.TemplateResponse(request, "af/player.html", {
+        "active": "af-players",
+        "breadcrumbs": [{"href": "/", "label": "Home"},
+                        {"href": "/af/players", "label": "Players"},
+                        {"label": detail["player"]["name"]}],
+        **detail})
 
 
 @router.get("/teams", response_class=HTMLResponse)
 def page_teams(request: Request, _: str = Depends(verify_auth)):
     with _connection() as connection:
-        return templates.TemplateResponse(request, "af/teams.html",
-                                          {"active": "af-teams", "teams": af_queries.teams_index(connection)})
+        return templates.TemplateResponse(request, "af/teams.html", {
+            "active": "af-teams", "teams": af_queries.teams_index(connection),
+            "grain_note": af_queries.GRAIN_NOTE})
 
 
 @router.get("/team/{team_id}", response_class=HTMLResponse)
@@ -195,4 +237,9 @@ def page_team(request: Request, team_id: int, _: str = Depends(verify_auth)):
         detail = af_queries.team_detail(connection, team_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="Team not found")
-    return templates.TemplateResponse(request, "af/team.html", {"active": "af-teams", **detail})
+    return templates.TemplateResponse(request, "af/team.html", {
+        "active": "af-teams", "grain_note": af_queries.GRAIN_NOTE,
+        "breadcrumbs": [{"href": "/", "label": "Home"},
+                        {"href": "/af/teams", "label": "Teams"},
+                        {"label": detail["team"]["name"]}],
+        **detail})

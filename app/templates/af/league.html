@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% import "af/_macros.html" as af %}{% import "macros.html" as macros %}{% block title %}{{ league.name }}{% endblock %}{% block heading %}{{ league.name }}{% endblock %}
 {% block subtitle %}{{ league.country or 'Country unknown' }}{% endblock %}
-{% block content %}
+{% block content %}{{ macros.breadcrumbs(breadcrumbs) }}{{ af.grain_note(grain_note) }}
 <section><h2>By season</h2><div class="table-wrap"><table><thead><tr><th>Season</th><th class="num">Absences</th><th class="num">Questionable</th></tr></thead><tbody>
 {% for row in by_season %}<tr><td>{{ row.season }}</td><td class="num">{{ row.absences - row.questionable }}</td><td class="num">{{ row.questionable }}</td></tr>{% endfor %}
 </tbody></table></div>{{ macros.empty_state('No seasons recorded.') if not by_season }}</section>

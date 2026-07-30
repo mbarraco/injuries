@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% import "af/_macros.html" as af %}{% import "macros.html" as macros %}{% block title %}{{ team.name }}{% endblock %}{% block heading %}{{ team.name }}{% endblock %}
 {% block subtitle %}{{ team.country or 'Country unknown' }}{% if team.founded %} · founded {{ team.founded }}{% endif %}{% endblock %}
-{% block content %}
+{% block content %}{{ macros.breadcrumbs(breadcrumbs) }}{{ af.grain_note(grain_note) }}
 <section><h2>Recent absences ({{ recent|length }})</h2><div class="table-wrap"><table><thead><tr><th>Player</th><th>League</th><th>Reason</th><th>Date</th></tr></thead><tbody>
 {% for row in recent %}<tr><td>{{ af.af_entity_link('player', row.player_id, row.player or 'Unknown') }}</td><td>{{ af.af_entity_link('league', row.league_id, row.league) }}</td><td>{{ row.reason or '—' }}</td><td>{{ row.fixture_date[:10] if row.fixture_date else '—' }}</td></tr>{% endfor %}
 </tbody></table></div>{{ macros.empty_state('No absences recorded for this team.') if not recent }}</section>

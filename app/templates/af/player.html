@@ -2,6 +2,7 @@
 {% block header_media %}{% if player.photo_url %}<img class="player-photo" src="{{ player.photo_url }}" alt="" loading="lazy">{% endif %}{% endblock %}
 {% block subtitle %}{{ player.nationality or 'Nationality unknown' }}{% if player.birth_date %} · born {{ player.birth_date }}{% endif %}{% endblock %}
 {% block content %}
+{{ macros.breadcrumbs(breadcrumbs) }}
 <section><div class="stat-row">
 {{ macros.stat(total_absences, 'Confirmed absences') }}
 {{ macros.stat('{:,}'.format(total_minutes), 'Minutes recorded') }}

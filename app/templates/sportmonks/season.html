@@ -2,7 +2,7 @@
 {% block title %}{{ season.name }}{% endblock %}{% block heading %}{{ season.name }}{% endblock %}
 {% block subtitle %}{{ season.league_name }}{% if season.is_current %} · current season{% endif %}{% endblock %}
 {% block content %}
-{{ macros.breadcrumbs([{'label': 'Home', 'href': '/'}, {'label': 'Seasons', 'href': '/seasons'}, {'label': season.name}]) }}
+{{ macros.breadcrumbs([{'label': 'Home', 'href': '/sportmonks/'}, {'label': 'Seasons', 'href': '/sportmonks/seasons'}, {'label': season.name}]) }}
 
 <section><h2>League</h2><p>{{ sm.entity_link('league', season.league_id, season.league_name) }}</p></section>
 

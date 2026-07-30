@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% import "macros.html" as macros %}{% import "af/_macros.html" as af %}{% block title %}API-Football Analytics{% endblock %}{% block heading %}Analytics{% endblock %}
 {% block subtitle %}Confirmed absences only — Questionable rows are excluded from every breakdown below.{% endblock %}
-{% block content %}
+{% block content %}{{ af.grain_note(grain_note) }}
 <section><h2>By position</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>Position</th><th class="num">Absences</th></tr></thead><tbody>
 {% for row in by_position %}<tr><td>{{ row.position }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
 </tbody></table></div><p class="note">Position is season-scoped (from player_season), not a fixed player attribute — a player who changed role appears under each position he actually played.</p></div></section>
