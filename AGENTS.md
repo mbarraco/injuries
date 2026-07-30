@@ -85,6 +85,14 @@ Two vendors, deliberately not merged:
 Both databases are rebuildable artifacts, never hand-edited. The raw cache is
 the durable record and outlives any subscription.
 
+**Both `.db` files are committed, so a schema change reaches production in two
+steps** — the code on push, the rebuilt database only when someone re-runs the
+ETL and commits it. Between those moments the deployed app runs new queries
+against an old file. A new table must therefore never become a hard dependency
+of a page that already worked: check for it (`af_queries.transfers_available`)
+and degrade, or the deploy 500s until the rebuild lands. Render "not built yet"
+distinctly from "none found" — they are opposite claims.
+
 `ingest/core/` holds what is genuinely vendor-neutral (the cache, month
 arithmetic). **Rate limiting is not shared** — the two APIs meter differently
 enough that one abstraction would model neither correctly.
@@ -177,9 +185,11 @@ API-Football adds its own, for reasons recorded in `logbook/apifootball.md`:
   never a market value.
 - **Transfer dates are reliable to the season, not the day.** They cluster on
   1 July and on batch-stamped days. Never measure an interval in days from one.
-- **Transfer dedup is an explicit counted step, not a constraint.** The vendor
-  emits byte-identical duplicates, and a move between two covered clubs is
-  reported by both clubs and the player. `source` records that agreement.
+- **Transfer dedup is an explicit counted step, not a constraint.** A move
+  between two covered clubs arrives up to three times — from each club and from
+  the player — so the natural key is not unique across files. Count duplication
+  per source *file*, never per subject type: comparing `"team" == "team"` files
+  two clubs agreeing as a vendor duplicate. `source` records that agreement.
 - **A transfer's club side may have a name and no id** — the vendor sometimes
   puts a *player* there. Render an id-less side as plain text, never a link.
 

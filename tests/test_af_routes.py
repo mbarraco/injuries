@@ -75,3 +75,59 @@ def test_main_dashboard_still_works_unaffected(client):
     existing Sportmonks-backed app, which uses a completely separate client
     fixture (app.db, not apifootball.db)."""
     assert client.get("/").status_code == 200
+
+
+# --------------------------------------------------------------------------- #
+# The production 500, reproduced at the HTTP level.
+#
+# `app/apifootball.db` is a committed binary artifact, so a schema addition
+# reaches production in two steps: the code on push, the rebuilt database
+# whenever someone re-runs the ETL and commits it. In between, the deployed app
+# runs new queries against an old file. Wiring transfers into player_detail and
+# team_detail made that gap fatal for two pages that have nothing to do with
+# transfers.
+#
+# These go through the real templates on purpose: a query layer that returns a
+# safe empty dict still 500s if the template reads a key that isn't in it.
+# --------------------------------------------------------------------------- #
+def test_player_page_renders_without_the_transfer_tables(af_client_without_transfers):
+    response = af_client_without_transfers.get("/af/player/1")
+    assert response.status_code == 200
+    # The page's own subject matter is untouched...
+    assert "Alpha" in response.text
+    # ...and the missing data is described as missing, not as "no transfers",
+    # which would be a claim about the player rather than about the build.
+    assert "has not been built into this database yet" in response.text
+
+
+def test_team_page_renders_without_the_transfer_tables(af_client_without_transfers):
+    response = af_client_without_transfers.get("/af/team/100")
+    assert response.status_code == 200
+    assert "FC Test" in response.text
+    assert "has not been built into this database yet" in response.text
+
+
+def test_transfers_page_renders_without_the_transfer_tables(af_client_without_transfers):
+    response = af_client_without_transfers.get("/af/transfers")
+    assert response.status_code == 200
+    assert "has not been built into this database yet" in response.text
+    # No zeroed headline figures: a row of zeros reads as a measurement, and
+    # "not downloaded" is not zero of anything.
+    assert "Distinct moves" not in response.text
+
+
+def test_transfer_json_apis_survive_without_the_tables(af_client_without_transfers):
+    for url in ("/af/api/player/1", "/af/api/transfers/player/1",
+                "/af/api/transfers/team/100"):
+        assert af_client_without_transfers.get(url).status_code == 200, url
+
+
+def test_transfer_pages_render_normally_when_the_tables_exist(af_client):
+    """The other direction: the availability guard must not disable a feature
+    that is present. A test that only proves the empty case would pass just as
+    well if transfers never rendered at all."""
+    for url in ("/af/player/1", "/af/team/100", "/af/transfers"):
+        response = af_client.get(url)
+        assert response.status_code == 200, url
+        assert "has not been built into this database yet" not in response.text, url
+    assert "Distinct moves" in af_client.get("/af/transfers").text

@@ -4,16 +4,22 @@
 <section><h2>Recent absences ({{ recent|length }})</h2><div class="table-wrap"><table><thead><tr><th>Player</th><th>League</th><th>Reason</th><th>Date</th></tr></thead><tbody>
 {% for row in recent %}<tr><td>{{ af.af_entity_link('player', row.player_id, row.player or 'Unknown') }}</td><td>{{ af.af_entity_link('league', row.league_id, row.league) }}</td><td>{{ row.reason or '—' }}</td><td>{{ row.fixture_date[:10] if row.fixture_date else '—' }}</td></tr>{% endfor %}
 </tbody></table></div>{{ macros.empty_state('No absences recorded for this team.') if not recent }}</section>
+{# An absent transfer table is a fact about the BUILD, not about the club, so
+   it is stated once here rather than twice as two empty tables. #}
+{% if not transfers.available %}
+<section><h2>Transfers</h2>{{ macros.empty_state('Transfer data has not been built into this database yet — this is not a statement about this club.') }}</section>
+{% else %}
 <section>{{ macros.count_heading('Transfers in', transfers.incoming.shown, transfers.incoming.total) }}
 <div class="table-wrap"><table><thead><tr><th>Date</th><th>Player</th><th>From</th><th>To</th><th>Type</th><th class="num">Fee</th></tr></thead><tbody>
-{% for row in transfers.incoming.items %}{{ af.transfer_row(row) }}{% endfor %}
-</tbody></table></div>{{ macros.empty_state('No incoming transfers recorded.') if not transfers.incoming.items }}</section>
+{% for row in transfers.incoming.rows %}{{ af.transfer_row(row) }}{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No incoming transfers recorded.') if not transfers.incoming.rows }}</section>
 
 <section>{{ macros.count_heading('Transfers out', transfers.outgoing.shown, transfers.outgoing.total) }}
 <div class="table-wrap"><table><thead><tr><th>Date</th><th>Player</th><th>From</th><th>To</th><th>Type</th><th class="num">Fee</th></tr></thead><tbody>
-{% for row in transfers.outgoing.items %}{{ af.transfer_row(row) }}{% endfor %}
-</tbody></table></div>{{ macros.empty_state('No outgoing transfers recorded.') if not transfers.outgoing.items }}
+{% for row in transfers.outgoing.rows %}{{ af.transfer_row(row) }}{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No outgoing transfers recorded.') if not transfers.outgoing.rows }}
 <p class="note">{{ transfers.date_note }} Transfer history is not limited to 2020–2025 the way absences are — see <a href="/af/transfers">Transfers</a>.</p></section>
+{% endif %}
 
 <p><a href="/af/teams">← All teams</a></p>
 {% endblock %}

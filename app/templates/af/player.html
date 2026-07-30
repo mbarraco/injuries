@@ -16,9 +16,14 @@
 </tbody></table></div>{{ macros.empty_state('No absences recorded for this player.') if not recent }}</section>
 <section>{{ macros.count_heading('Career transfers', transfers.shown, transfers.total) }}
 <div class="table-wrap"><table><thead><tr><th>Date</th><th>From</th><th>To</th><th>Type</th><th class="num">Fee</th></tr></thead><tbody>
-{% for row in transfers.items %}{{ af.transfer_row(row, show_player=False) }}{% endfor %}
-</tbody></table></div>{{ macros.empty_state('No transfers recorded for this player.') if not transfers.items }}
-{% if transfers.items %}<p class="note">{{ transfers.date_note }} Unlike the seasons
+{% for row in transfers.rows %}{{ af.transfer_row(row, show_player=False) }}{% endfor %}
+</tbody></table></div>
+{# "Not downloaded yet" and "this player never moved" are opposite claims.
+   Rendering both as an empty table would state the second while meaning the
+   first. #}
+{% if not transfers.available %}{{ macros.empty_state('Transfer data has not been built into this database yet — this is not a statement about this player.') }}
+{% elif not transfers.rows %}{{ macros.empty_state('No transfers recorded for this player.') }}{% endif %}
+{% if transfers.rows %}<p class="note">{{ transfers.date_note }} Unlike the seasons
 above, this career history is <strong>not</strong> limited to 2020–2025 — it is the
 only part of this dataset that reaches further back. A club shown as plain text is
 one outside these 47 competitions.</p>{% endif %}</section>

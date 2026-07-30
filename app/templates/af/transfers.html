@@ -6,10 +6,13 @@
 <section><div class="card banner">
 <p><strong>This table is not capped at 2020–2025.</strong> Every other table on
 the API-Football side is limited to the seasons the vendor covers for fixtures
-and injuries. Transfers are not: the history below reaches decades further back,
-and it is the only route to a player's pre-2020 career in this dataset.</p>
+and injuries. Transfers are not: their history reaches decades further back,
+and they are the only route to a player's pre-2020 career in this dataset.</p>
 </div></section>
 
+{# Suppressed entirely when the tables are absent: a row of zeros is a set of
+   measurements, and "we have not built this yet" is not zero of anything. #}
+{% if overview.available %}
 <section><div class="stat-row">
 {{ macros.stat('{:,}'.format(overview.moves), 'Distinct moves') }}
 {{ macros.stat('{:,}'.format(overview.players), 'Players with a career recorded') }}
@@ -18,8 +21,11 @@ and it is the only route to a player's pre-2020 career in this dataset.</p>
 {{ macros.stat('{:,}'.format(overview.fee_rows), 'Moves with a parsed euro fee') }}
 {{ macros.stat('{:,}'.format(overview.confirmed_both), 'Confirmed by club and player') }}
 </div></section>
+{% endif %}
 
-{% if overview.moves %}
+{% if not overview.available %}
+<section>{{ macros.empty_state('Transfer data has not been built into this database yet. Run the transfers crawl, then rebuild — the crawl is resumable, so a partial download still produces a usable page.') }}</section>
+{% elif overview.moves %}
 <section><div class="card">
 <h2>How to read these numbers</h2>
 <p class="note">{{ overview.date_note }}</p>

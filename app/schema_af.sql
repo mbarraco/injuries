@@ -231,10 +231,18 @@ CREATE VIEW af_unmapped_reason AS
 -- Divergences from schema.sql's `transfer` table, each forced by measurement:
 --
 --   * NO vendor id, and the documented natural key (player, from, to, date)
---     is NOT unique -- it collided twice in a 1,642-row sample on
---     byte-identical rows. So: surrogate key, and dedup is an explicit counted
---     step in the ETL rather than a UNIQUE constraint. A constraint would
---     either abort the build or silently drop rows depending on insert mode.
+--     is NOT unique ACROSS SOURCE FILES. A move between two covered clubs is
+--     reported by both clubs' /transfers?team= responses and again by the
+--     player's own, so the same fact arrives up to three times. So: surrogate
+--     key, and dedup is an explicit counted step in the ETL rather than a
+--     UNIQUE constraint, which would abort the build or silently drop rows
+--     depending on insert mode.
+--     (Corrected 2026-07-30: an earlier version of this comment said the
+--     vendor emits byte-identical duplicates, citing two collisions in a
+--     1,642-row probe sample. That was wrong -- the probe pooled responses
+--     without recording which file each came from, so two clubs agreeing
+--     looked like one vendor duplicating. Measured over 464,657 rows with
+--     per-file tracking, true within-file duplicates are ZERO.)
 --   * NO amount column. Sportmonks supplies a numeric fee; this vendor packs
 --     the fee INTO the type string, in three inconsistent formats, on only
 --     ~18% of rows. The parse lives in af_transfer_type so it is inspectable.

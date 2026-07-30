@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import html
 import json
 import os
 import re
@@ -133,10 +134,21 @@ TRANSFER_CATEGORIES = {
     "n/a": "unknown",
     "-": "unknown",
     "": "unknown",
-    # Meaning undetermined. Left as 'unknown' rather than guessed: 7 rows in the
-    # sample, and a wrong guess here is invisible in every downstream total.
+    # Meaning undetermined. Left as 'unknown' rather than guessed: a wrong guess
+    # here is invisible in every downstream total. ~600 rows in the full data.
     "raise": "unknown",
+    # Found in the full 313k-row build, absent from the 1,642-row probe. Each is
+    # a real move type, so leaving them in 'unknown' would file a known fact as
+    # an unknown one.
+    "end of career": "career_end",   # the player retired -- not a club move
+    "player swap": "swap",
+    "trial": "trial",
 }
+
+# The vendor HTML-escapes some currency symbols: "&pound; 7M" appears verbatim
+# in the payload. Unescaped these are ordinary fees, so without this every
+# pound-denominated fee falls through to 'unknown' and vanishes from all totals.
+_CURRENCY_CHARS = "€$£ "
 
 # Fee strings, in the three formats measured. All euros in the sample, but the
 # sample was two European clubs, so a non-euro symbol must NOT be silently
@@ -159,11 +171,28 @@ def classify_transfer_type(raw):
 
     Category words are matched first and exactly, so a stray digit in a future
     category value cannot be mistaken for a fee.
+
+    Three normalisations happen before matching, each for a shape found in the
+    full data that the 1,642-row probe never showed:
+
+    1. **HTML unescaping.** "&pound; 7M" is a real vendor value. Left escaped it
+       matches neither a category nor the fee pattern, so every pound fee would
+       be silently filed as 'unknown'.
+    2. **A currency symbol glued to a category word.** "€ Free" (187 rows) and
+       "Free €" mean *free*, not an unparseable amount. Stripping the symbol is
+       safe because a real fee still has digits and so cannot become a category.
+    3. Case and whitespace, as before.
     """
-    text = (raw or "").strip()
+    text = html.unescape((raw or "").strip())
     lowered = text.lower()
     if lowered in TRANSFER_CATEGORIES:
         return TRANSFER_CATEGORIES[lowered], None, None, None, None
+
+    # "€ Free" -> "free", "£ N/A" -> "n/a". A fee keeps its digits, so this can
+    # never turn "€ 7M" into a category.
+    unsigned = lowered.strip(_CURRENCY_CHARS).strip()
+    if unsigned in TRANSFER_CATEGORIES:
+        return TRANSFER_CATEGORIES[unsigned], None, None, None, None
 
     match = _FEE_PATTERN.match(text)
     if not match:
@@ -369,27 +398,47 @@ def collect_transfers():
 
     Returns (rows, type_counts, stats).
 
-    **Dedup is explicit and counted, not a constraint.** Two reasons, both
-    measured (logbook 2026-07-30):
+    **Dedup is explicit and counted, not a constraint.** A move between two
+    covered clubs is reported up to three times: once by each club's team file
+    and once by the player's own. That is agreement, not new information -- but
+    only if it is collapsed deliberately and the collapse is counted. Left
+    alone it triple-counts the busiest clubs, and a UNIQUE constraint on the
+    natural key would abort the build or silently drop rows instead.
 
-    1. The vendor emits true duplicates. Player 19034 had two byte-identical
-       rows for `2020-08-01 Ajax->Galatasaray`. A UNIQUE constraint on the
-       documented natural key would abort the build or silently drop rows.
-    2. A move between two covered clubs is reported three times over: once by
-       each club's team file and once by the player's file. That is agreement,
-       not new information -- but only if it is collapsed deliberately and the
-       collapse is counted. Left alone it triple-counts the busiest clubs.
+    The vendor does NOT appear to emit byte-identical duplicates within a
+    single file: measured over 464,657 rows, `duplicate_within_file` is zero.
+    An earlier note here claimed it did, citing two collisions in the probe;
+    that probe pooled responses without recording which file each came from,
+    so two clubs agreeing looked like one vendor duplicating (logbook
+    2026-07-30). The counter stays because "zero so far" is not "impossible",
+    and it is the only thing that would notice if that changed.
 
     `source` records which subjects saw a row, so agreement stays visible rather
     than being flattened away by the dedup that relies on it.
+
+    **Duplication is counted per SOURCE FILE, not per subject type.** An earlier
+    version compared only `subject`, which made the two most common cases
+    indistinguishable: a move between two covered clubs appears in *both* clubs'
+    team files, and comparing `"team" == "team"` filed that as a byte-identical
+    vendor duplicate. It is the opposite -- two independent club records
+    agreeing. That mislabelled ~97,000 rows on the first full build. The origin
+    set below keeps (subject, subject_id), so the three cases stay separate:
+
+    | case | meaning |
+    |---|---|
+    | same file twice | a true vendor duplicate |
+    | two files, same subject type | two clubs agreeing about one move |
+    | two files, different subject types | a club and the player agreeing |
     """
-    merged, stats = {}, Counter()
+    merged, origins, stats = {}, {}, Counter()
     for subject, subdir in (("team", "transfers_team"),
                             ("player", "transfers_player")):
         files = _sharded_cache_files(subdir)
         stats[f"{subject}_files"] = len(files)
         for path in files:
-            for entry in read_json(path).get("transfers") or []:
+            document = read_json(path)
+            origin = (subject, document.get("subject_id"))
+            for entry in document.get("transfers") or []:
                 player = (entry or {}).get("player") or {}
                 for move in (entry or {}).get("transfers") or []:
                     teams = (move or {}).get("teams") or {}
@@ -402,8 +451,7 @@ def collect_transfers():
                     key = (player.get("id"), (move or {}).get("date"), raw_type,
                            out_side.get("id"), in_side.get("id"))
                     stats["raw_rows"] += 1
-                    existing = merged.get(key)
-                    if existing is None:
+                    if key not in merged:
                         merged[key] = {
                             "player_id": player.get("id"),
                             "player_name": player.get("name"),
@@ -415,13 +463,24 @@ def collect_transfers():
                             "to_team_name": in_side.get("name"),
                             "source": subject,
                         }
+                        origins[key] = {origin}
                     else:
                         stats["collapsed"] += 1
-                        if existing["source"] != subject:
-                            existing["source"] = "both"
-                            stats["confirmed_by_both"] += 1
+                        if origin in origins[key]:
+                            # The same file listed this move twice.
+                            stats["duplicate_within_file"] += 1
                         else:
-                            stats["duplicate_within_subject"] += 1
+                            origins[key].add(origin)
+
+    # Resolve corroboration once, from the full origin set. Doing it during the
+    # loop cannot distinguish "second club" from "second copy" without it.
+    for key, seen in origins.items():
+        subjects = {subject for subject, _ in seen}
+        if len(subjects) > 1:
+            merged[key]["source"] = "both"
+            stats["confirmed_by_club_and_player"] += 1
+        elif len(seen) > 1:
+            stats["corroborated_within_subject"] += 1
 
     rows = list(merged.values())
     type_counts = Counter(row["type"] for row in rows)
@@ -614,20 +673,27 @@ def verify(connection, truncated):
             f"Query af_unmapped_transfer_type.")
 
     # A new fee format would parse as 'unknown' and vanish from every fee total
-    # without erroring. Surfacing the unknown share is what makes that visible;
-    # the sampled baseline was 21% (almost all of it the vendor's own 'N/A').
+    # without erroring. Surfacing the unknown share is what makes that visible.
+    #
+    # Baseline: **30.5%** over the full 313,914-row build, of which the vendor's
+    # own bare 'N/A' is 28.5 points. The remainder is '-', '', 'Raise' and
+    # currency-prefixed null-markers -- i.e. at this threshold essentially
+    # NOTHING is an unparsed format. (An earlier comment cited 21%, taken from
+    # a 1,642-row probe of two clubs; that sample simply carried proportionally
+    # less 'N/A'. A baseline from one sample is not a baseline.)
     transfer_rows = connection.execute(
         "SELECT COUNT(*) FROM af_transfer").fetchone()[0]
     if transfer_rows:
         unknown_share = connection.execute(
             "SELECT COUNT(*) FROM af_transfer_detail "
             "WHERE category = 'unknown'").fetchone()[0] / transfer_rows
-        if unknown_share > 0.35:
+        if unknown_share > 0.40:
             problems.append(
                 f"{unknown_share:.1%} of transfers have category 'unknown' — "
-                f"well above the ~21% measured baseline, which is mostly the "
-                f"vendor's own 'N/A'. A new type or fee format is probably "
-                f"unparsed; check af_transfer_type ORDER BY row_count DESC.")
+                f"above the 30.5% measured on the full build, which is almost "
+                f"entirely the vendor's own 'N/A'. A new type or fee format is "
+                f"probably unparsed; check af_transfer_type ORDER BY row_count "
+                f"DESC and look for anything that is not a bare null-marker.")
 
         # Non-euro fees are parsed but deliberately left out of fee_eur. If any
         # appear, every euro total silently excludes them, and that must be said
@@ -687,9 +753,14 @@ def write_data_quality(connection, counts, reason_counts, truncated,
             "raw_rows": "move rows read from cache, before dedup",
             "rows": "distinct moves kept",
             "collapsed": "rows dropped as duplicates of a kept row",
-            "confirmed_by_both": "moves reported by BOTH a club and the player",
-            "duplicate_within_subject": "true vendor duplicates, identical rows "
-                                        "from the same subject",
+            "confirmed_by_club_and_player": "moves reported by BOTH a club file "
+                                            "and the player's own file",
+            "corroborated_within_subject": "moves reported by two DIFFERENT "
+                                           "files of the same kind — normally "
+                                           "both clubs in the move. Agreement, "
+                                           "not duplication",
+            "duplicate_within_file": "true vendor duplicates: one file listed "
+                                     "the same move more than once",
             "sides_without_id": "club sides with a name but no id — the vendor "
                                 "sometimes puts a PLAYER here; render as text, "
                                 "never as a link",
@@ -786,9 +857,13 @@ def main(argv=None):
               f"(NOT capped at 2020–2025 like every other table)")
         print(f"  dedup: {transfer_stats['raw_rows']:,} rows read → "
               f"{transfer_stats['rows']:,} distinct "
-              f"({transfer_stats.get('collapsed', 0):,} collapsed, of which "
-              f"{transfer_stats.get('confirmed_by_both', 0):,} were the same "
-              f"move seen from both a club and the player)")
+              f"({transfer_stats.get('collapsed', 0):,} collapsed)")
+        print(f"    corroborated by a club AND the player: "
+              f"{transfer_stats.get('confirmed_by_club_and_player', 0):,}")
+        print(f"    corroborated by two files of the same kind (usually both "
+              f"clubs): {transfer_stats.get('corroborated_within_subject', 0):,}")
+        print(f"    true vendor duplicates (one file, same move twice): "
+              f"{transfer_stats.get('duplicate_within_file', 0):,}")
         fee_rows, fee_total = connection.execute(
             "SELECT COUNT(*), COALESCE(SUM(fee_eur), 0) FROM af_transfer_detail "
             "WHERE fee_eur IS NOT NULL").fetchone()

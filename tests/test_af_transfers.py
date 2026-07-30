@@ -46,6 +46,28 @@ def test_fee_strings_parse_with_their_format_recorded(
     assert got_format == fee_format
 
 
+@pytest.mark.parametrize("raw,amount,currency", [
+    # The vendor HTML-escapes pound signs. Left escaped, every one of these
+    # matched neither a category nor the fee pattern and was filed as 'unknown',
+    # so ~20 real fees disappeared from every total without an error.
+    ("&pound; 7M",     7_000_000, "GBP"),
+    ("&pound; 15M",   15_000_000, "GBP"),
+    ("&pound; 2.7M",   2_700_000, "GBP"),
+    ("450K &pound;",     450_000, "GBP"),
+])
+def test_html_escaped_currency_symbols_are_decoded(raw, amount, currency):
+    category, got_amount, got_currency, fee_eur, _fmt = \
+        etl_af.classify_transfer_type(raw)
+    assert (category, got_amount, got_currency) == ("fee", amount, currency)
+    # Still not euros, so still excluded from any euro total.
+    assert fee_eur is None
+
+
+def test_escaped_pound_na_is_unknown_not_a_fee():
+    """"&pound; N/A" is a currency symbol on a null-marker, not an amount."""
+    assert etl_af.classify_transfer_type("&pound; N/A")[0] == "unknown"
+
+
 def test_non_euro_fee_parses_an_amount_but_never_a_euro_value():
     """The guard against an undetectable error.
 
@@ -79,6 +101,17 @@ def test_non_euro_fee_parses_an_amount_but_never_a_euro_value():
     ("", "unknown"),
     # Meaning undetermined — left unknown rather than guessed.
     ("Raise", "unknown"),
+    # Found only in the full 313k-row build, never in the probe sample.
+    ("End of career", "career_end"),   # retirement, not a club move
+    ("Player Swap", "swap"),
+    ("Trial", "trial"),
+    # A currency symbol glued to a category word. "€ Free" is 187 rows and
+    # means free; parsed naively it is neither a category nor a fee, so it was
+    # landing in 'unknown' and inflating the unknown share.
+    ("€ Free", "free"),
+    ("Free €", "free"),
+    ("€ N/A", "unknown"),
+    ("$ N/A", "unknown"),
 ])
 def test_category_words_classify_without_being_mistaken_for_fees(raw, expected):
     category, amount, _currency, fee_eur, fee_format = \
@@ -163,19 +196,50 @@ def test_same_move_seen_from_both_subjects_collapses_to_one_row(transfer_cache):
     # Agreement is recorded, not discarded — that is the whole reason `source`
     # exists rather than being dropped by the dedup that relies on it.
     assert rows[0]["source"] == "both"
-    assert stats["confirmed_by_both"] == 1
+    assert stats["confirmed_by_club_and_player"] == 1
 
 
 def test_true_vendor_duplicates_are_collapsed_and_counted_separately(transfer_cache):
-    """Player 19034 really had two byte-identical rows in the probe. They must
-    collapse, and NOT be counted as cross-source corroboration."""
+    """A file listing the same move twice must collapse, and be counted as a
+    duplicate rather than as corroboration.
+
+    Measured over 464,657 real rows this case is currently ZERO — the probe's
+    apparent duplicates were two clubs agreeing (see the test below). The
+    counter and this test stay because "not observed yet" is not "cannot
+    happen", and nothing else would notice if it started.
+    """
     move = _move("2020-08-01", "N/A", 194, 645)
     transfer_cache("team", "transfers_team", 194, 19034, [move, dict(move)])
 
     rows, _types, stats = etl_af.collect_transfers()
     assert len(rows) == 1
-    assert stats["duplicate_within_subject"] == 1
-    assert stats.get("confirmed_by_both", 0) == 0
+    assert stats["duplicate_within_file"] == 1
+    assert stats.get("confirmed_by_club_and_player", 0) == 0
+    assert stats.get("corroborated_within_subject", 0) == 0
+    assert rows[0]["source"] == "team"
+
+
+def test_both_clubs_reporting_one_move_is_agreement_not_duplication(transfer_cache):
+    """The case an earlier version got backwards, at a scale of ~97,000 rows.
+
+    A move between two covered clubs appears in BOTH clubs' team files. Both
+    carry subject "team", so comparing subject alone filed this as a
+    byte-identical vendor duplicate — the opposite of what it is. Counting has
+    to be per source FILE, not per subject type.
+    """
+    move = _move("2020-08-01", "€ 5M", 194, 645)
+    transfer_cache("team", "transfers_team", 194, 19034, [move])   # selling club
+    transfer_cache("team", "transfers_team", 645, 19034, [move])   # buying club
+
+    rows, _types, stats = etl_af.collect_transfers()
+    assert len(rows) == 1
+    assert stats["collapsed"] == 1
+    assert stats["corroborated_within_subject"] == 1
+    # Two clubs agreeing is not a vendor duplicate...
+    assert stats.get("duplicate_within_file", 0) == 0
+    # ...and it is not club-and-player agreement either, so `source` stays
+    # "team": no player file has confirmed this move.
+    assert stats.get("confirmed_by_club_and_player", 0) == 0
     assert rows[0]["source"] == "team"
 
 
@@ -221,11 +285,11 @@ def test_player_transfers_returns_the_real_total_beside_the_page(af_connection):
     result = af_queries.player_transfers(af_connection, 1, limit=2)
     assert result["total"] == 3          # player 1 has 3 moves
     assert result["shown"] == 2          # but only 2 are returned
-    assert len(result["items"]) == 2
+    assert len(result["rows"]) == 2
 
 
 def test_player_transfers_newest_first(af_connection):
-    items = af_queries.player_transfers(af_connection, 1)["items"]
+    items = af_queries.player_transfers(af_connection, 1)["rows"]
     assert [row["date"] for row in items] == [
         "2019-07-01", "2019-01-15", "2016-07-01"]
 
@@ -243,14 +307,14 @@ def test_team_transfers_separate_incoming_from_outgoing(af_connection):
     result = af_queries.team_transfers(af_connection, 100)
     assert result["incoming"]["total"] == 5    # 5 moves TO team 100
     assert result["outgoing"]["total"] == 2    # 2 moves FROM team 100
-    assert all(row["to_team_id"] == 100 for row in result["incoming"]["items"])
-    assert all(row["from_team_id"] == 100 for row in result["outgoing"]["items"])
+    assert all(row["to_team_id"] == 100 for row in result["incoming"]["rows"])
+    assert all(row["from_team_id"] == 100 for row in result["outgoing"]["rows"])
 
 
 def test_linkable_flags_mark_the_id_less_side(af_connection):
     """Beta's 2024 move has a club side with a name and no id. The flag exists
     so a template cannot render it as a link by forgetting to check."""
-    items = af_queries.player_transfers(af_connection, 2)["items"]
+    items = af_queries.player_transfers(af_connection, 2)["rows"]
     row = next(r for r in items if r["from_team_name"] == "Icardi Mauro")
     assert not row["from_linkable"]
     assert row["to_linkable"]
@@ -325,6 +389,88 @@ def test_unmapped_transfer_type_view_reports_a_missing_mapping(af_db_path):
             "SELECT COUNT(*) FROM af_transfer_detail").fetchone()[0] == 8
     finally:
         connection.close()
+
+
+# --------------------------------------------------------------------------- #
+# A database built BEFORE the transfer tables existed.
+#
+# This is not hypothetical. `app/apifootball.db` is a committed binary artifact,
+# so code and database ship at different moments: the code went live while the
+# deployed file was still a pre-transfer build, and every /af/player/{id} and
+# /af/team/{id} page returned 500 with "no such table: af_transfer". Those pages
+# are not about transfers and had worked for weeks — they broke because a new
+# feature was wired into them as a hard dependency.
+# --------------------------------------------------------------------------- #
+@pytest.fixture
+def af_db_without_transfers(af_db_path):
+    """The same fixture database with the transfer objects dropped — exactly
+    the shape of a deployed file built before the schema gained them."""
+    writer = sqlite3.connect(af_db_path)
+    writer.executescript("""
+        DROP VIEW  IF EXISTS af_unmapped_transfer_type;
+        DROP VIEW  IF EXISTS af_transfer_detail;
+        DROP TABLE IF EXISTS af_transfer;
+        DROP TABLE IF EXISTS af_transfer_type;
+    """)
+    writer.commit()
+    writer.close()
+    return af_db_path
+
+
+def _connect(path):
+    return db_module.connect_af(path)
+
+
+def test_player_page_survives_a_database_built_before_transfers(af_db_without_transfers):
+    """The actual production 500, as a test."""
+    connection = _connect(af_db_without_transfers)
+    try:
+        detail = af_queries.player_detail(connection, 1)
+        assert detail is not None
+        assert detail["total_absences"] == 3          # the page still works
+        assert detail["transfers"]["available"] is False
+        assert detail["transfers"]["rows"] == []
+    finally:
+        connection.close()
+
+
+def test_team_page_survives_a_database_built_before_transfers(af_db_without_transfers):
+    connection = _connect(af_db_without_transfers)
+    try:
+        detail = af_queries.team_detail(connection, 100)
+        assert detail is not None
+        assert len(detail["recent"]) == 5             # absences unaffected
+        assert detail["transfers"]["available"] is False
+        assert detail["transfers"]["incoming"]["rows"] == []
+    finally:
+        connection.close()
+
+
+def test_transfer_queries_report_unavailable_rather_than_zero(af_db_without_transfers):
+    """Zero is a measurement; "not built" is not. The flag is what lets a
+    template tell a reader which one it is looking at."""
+    connection = _connect(af_db_without_transfers)
+    try:
+        assert af_queries.transfers_available(connection) is False
+        overview = af_queries.transfer_overview(connection)
+        assert overview["available"] is False
+        # Every key the template reads must still be present, or the page
+        # raises on a missing attribute — the same 500 in a different costume.
+        for key in ("moves", "players", "earliest", "latest", "fee_rows",
+                    "fee_eur_total", "confirmed_both", "unlinkable_sides",
+                    "date_note", "fee_note"):
+            assert key in overview
+        assert af_queries.transfer_categories(connection) == []
+        assert af_queries.transfers_by_year(connection) == []
+    finally:
+        connection.close()
+
+
+def test_transfers_available_is_true_for_a_current_build(af_connection):
+    """The other direction: the guard must not disable transfers on a database
+    that does have them, which would hide the feature instead of a crash."""
+    assert af_queries.transfers_available(af_connection) is True
+    assert af_queries.player_transfers(af_connection, 1)["available"] is True
 
 
 def test_transfer_history_is_not_bounded_by_af_league_season(af_connection):

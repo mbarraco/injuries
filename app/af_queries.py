@@ -270,6 +270,52 @@ TRANSFER_FEE_NOTE = ("Fees are parsed out of a free-text field that also holds "
 
 AF_TRANSFER_LIMIT = 50
 
+
+def transfers_available(connection):
+    """Whether this database was built with the transfer tables at all.
+
+    **`apifootball.db` is a committed binary artifact**, so the schema in
+    `schema_af.sql` and the schema actually deployed are two different things
+    that move at different times: code ships on push, the database ships only
+    when someone re-runs the ETL and commits the rebuilt file. Between those
+    two moments the deployed app is running new queries against an old file.
+
+    That gap already broke production once — every `/af/player/{id}` and
+    `/af/team/{id}` page returned 500 with `no such table: af_transfer`,
+    because transfers were wired into `player_detail` and `team_detail` as a
+    hard dependency. Those pages have nothing to do with transfers and had
+    worked for weeks.
+
+    So this is checked rather than assumed. An absent table means "not built
+    yet", which callers must render differently from "this player never moved"
+    — the two are opposite claims and only one of them is about football.
+    """
+    return connection.execute(
+        "SELECT COUNT(*) FROM sqlite_master "
+        "WHERE type = 'table' AND name = 'af_transfer'").fetchone()[0] > 0
+
+
+def _no_transfer_data(**extra):
+    """The shape every transfer query returns when the tables are absent.
+
+    `available` is False and every total is zero, so a template can say "not
+    loaded" instead of silently showing a zero that reads as a measurement.
+    """
+    return {"rows": [], "total": 0, "shown": 0, "available": False,
+            "date_note": TRANSFER_DATE_NOTE, **extra}
+
+
+# The list key is `rows`, NOT `items`, and that is load-bearing. These dicts are
+# read from templates as nested values (`transfers.rows`,
+# `transfers.incoming.rows`), and Jinja resolves attributes before keys — so
+# `transfers.items` returns the built-in `dict.items` METHOD, not the list, and
+# iterating it raises "'builtin_function_or_method' object is not iterable".
+#
+# The other `items`-keyed dicts in this module are safe only because their
+# routes `**`-unpack them into top-level template variables, where `items` is a
+# plain name with no dict in front of it. Anything nested must avoid the name.
+
+
 _AF_TRANSFER_SELECT = """
     SELECT t.id, t.player_id, t.player_name, t.date, t.type, t.source,
            t.from_team_id, t.from_team_name, t.to_team_id, t.to_team_name,
@@ -289,6 +335,8 @@ def player_transfers(connection, player_id, limit=AF_TRANSFER_LIMIT):
     requiring an af_player row would discard the history that makes this table
     worth having.
     """
+    if not transfers_available(connection):
+        return _no_transfer_data()
     total = connection.execute(
         "SELECT COUNT(*) FROM af_transfer WHERE player_id = ?",
         (player_id,)).fetchone()[0]
@@ -296,8 +344,8 @@ def player_transfers(connection, player_id, limit=AF_TRANSFER_LIMIT):
         {_AF_TRANSFER_SELECT} WHERE t.player_id = ?
         ORDER BY t.date DESC, t.id DESC LIMIT ?
     """, (player_id, limit))
-    return {"items": items, "total": total, "shown": len(items),
-            "date_note": TRANSFER_DATE_NOTE}
+    return {"rows": items, "total": total, "shown": len(items),
+            "available": True, "date_note": TRANSFER_DATE_NOTE}
 
 
 def team_transfers(connection, team_id, limit=AF_TRANSFER_LIMIT):
@@ -307,7 +355,10 @@ def team_transfers(connection, team_id, limit=AF_TRANSFER_LIMIT):
     outgoing business are different questions, and a combined list ordered by
     date reads as a single flow that hides which is which.
     """
-    result = {"date_note": TRANSFER_DATE_NOTE}
+    if not transfers_available(connection):
+        return {"available": False, "date_note": TRANSFER_DATE_NOTE,
+                "incoming": _no_transfer_data(), "outgoing": _no_transfer_data()}
+    result = {"available": True, "date_note": TRANSFER_DATE_NOTE}
     for direction, column in (("incoming", "to_team_id"),
                               ("outgoing", "from_team_id")):
         total = connection.execute(
@@ -317,7 +368,7 @@ def team_transfers(connection, team_id, limit=AF_TRANSFER_LIMIT):
             {_AF_TRANSFER_SELECT} WHERE t.{column} = ?
             ORDER BY t.date DESC, t.id DESC LIMIT ?
         """, (team_id, limit))
-        result[direction] = {"items": items, "total": total, "shown": len(items)}
+        result[direction] = {"rows": items, "total": total, "shown": len(items)}
     return result
 
 
@@ -328,6 +379,8 @@ def transfer_categories(connection):
     denominator invites reading it as the category's whole value, when most
     rows in every category carry no fee at all.
     """
+    if not transfers_available(connection):
+        return []
     return rows(connection, """
         SELECT COALESCE(tt.category, 'unmapped') AS category,
                COUNT(*) AS moves,
@@ -346,6 +399,8 @@ def transfers_by_year(connection, limit=40):
     dated, and the vendor's own July-1 stamping means a "season" derived from
     that date would be an inference dressed as a fact.
     """
+    if not transfers_available(connection):
+        return []
     return rows(connection, """
         SELECT SUBSTR(date, 1, 4) AS year, COUNT(*) AS moves
         FROM af_transfer WHERE date IS NOT NULL AND date <> ''
@@ -355,6 +410,14 @@ def transfers_by_year(connection, limit=40):
 
 def transfer_overview(connection):
     """Headline transfer figures, each stated so it cannot be over-read."""
+    if not transfers_available(connection):
+        # Every key the template reads, so the page renders its "not built yet"
+        # state instead of raising a missing-attribute error — which would be
+        # the same 500 in a different costume.
+        return {"moves": 0, "players": 0, "earliest": None, "latest": None,
+                "fee_rows": 0, "fee_eur_total": 0, "confirmed_both": 0,
+                "unlinkable_sides": 0, "available": False,
+                "date_note": TRANSFER_DATE_NOTE, "fee_note": TRANSFER_FEE_NOTE}
     result = dict(connection.execute("""
         SELECT
           (SELECT COUNT(*) FROM af_transfer) AS moves,
@@ -373,6 +436,7 @@ def transfer_overview(connection):
           (SELECT COUNT(*) FROM af_transfer
             WHERE from_team_id IS NULL OR to_team_id IS NULL) AS unlinkable_sides
     """).fetchone())
+    result["available"] = True
     result["date_note"] = TRANSFER_DATE_NOTE
     result["fee_note"] = TRANSFER_FEE_NOTE
     return result

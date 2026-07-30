@@ -812,3 +812,140 @@ flags so a template cannot get it wrong by forgetting to check.
 `tests/test_af_transfers.py` covers every fee format and category value measured
 above, both dedup paths, the id-less side, and the `af_unmapped_transfer_type`
 invariant in both directions. Not yet run at the time of writing.
+
+---
+
+## 2026-07-30 (later) — first full transfer build, and three corrections
+
+Built `apifootball.db` from **845 team files (complete) + 11,694 player files
+(12.6% of the 92,584 work list)**. Everything below is therefore from a
+PARTIAL crawl and will move on the next rebuild. Recorded because the
+corrections it forced are permanent even though the counts are not.
+
+**313,914 distinct moves, spanning 1926-01-01 to 2026-07-27.** The 2026-07-30
+finding holds at scale: this table is not capped at 2020–2025 and is the only
+route to pre-2020 career history in this vendor.
+
+### Correction 1 — `duplicate_within_subject` was mislabelled, at ~97,000 rows
+
+The first build reported `duplicate_within_subject = 97,141` with the
+description *"true vendor duplicates, identical rows from the same subject"*.
+**That description was wrong**, and the earlier entry above repeats it — read
+this instead.
+
+The dedup compared only the *subject type*. A move between two covered clubs
+appears in **both clubs' team files**, and both carry subject `"team"`, so
+`"team" == "team"` filed two independent clubs agreeing about a move as a
+byte-identical vendor duplicate. It is the opposite of a duplicate: it is
+corroboration, and it was the dominant case in that 97,141.
+
+The probe measured true duplicates at 2 in 1,642 rows (~0.1%); nothing
+suggested 21%. **A number that jumps 200x from its measured baseline and gets
+reported without comment is the failure, not the number.**
+
+Now counted per source FILE, keeping `(subject, subject_id)`, so three
+different things stay separate:
+
+| metric | meaning |
+|---|---|
+| `duplicate_within_file` | one file listed the same move twice — a real vendor duplicate |
+| `corroborated_within_subject` | two files of the same kind, normally both clubs in the move |
+| `confirmed_by_club_and_player` | a club file and the player's own file |
+
+### Correction 2 — the vendor HTML-escapes currency symbols
+
+`&pound; 7M`, `&pound; 15M`, `450K &pound;` appear **verbatim** in the payload.
+Escaped, they match neither a category word nor the fee pattern, so every
+pound-denominated fee was filed as `unknown` and vanished from all totals with
+no error. ~20 rows here, but the mechanism has no upper bound.
+
+Fixed by `html.unescape()` before matching. **The probe could not have caught
+this** — Ajax and Galatasaray quote in euros.
+
+### Correction 3 — a currency symbol glued to a category word
+
+`€ Free` (187 rows), `Free €` (10), `€ N/A` (43), `$ N/A` (5). Not amounts —
+`€ Free` means *free*. All were landing in `unknown`, inflating the unknown
+share. Fixed by stripping currency characters and retrying the category match;
+safe because a real fee still has digits and so can never become a category.
+
+### Values the probe never showed, now categorised
+
+`End of career` (268) — the player retired; a fact about a career, not a club
+move, so it gets its own category `career_end` rather than sitting in
+`unknown`. `Player Swap` (4) → `swap`. `Trial` (1) → `trial`. `Raise` (604)
+stays `unknown`: still undetermined, and a wrong guess would be invisible in
+every downstream total.
+
+### The non-euro guard fired, exactly as intended
+
+**8 rows in USD** (`$ 2M`, `$700K`, `$ 7M`, `$ 5M`, `$ 4.5M`, `$ 10K`), plus
+the pound rows above. The probe saw euros only and the temptation was to treat
+the symbol as decoration. `fee_eur` is populated for euros alone, so these
+carry `fee_amount` and are excluded from the euro total — and the ETL says so
+out loud rather than leaving it to be discovered.
+
+The euro total from this partial build, €76.8bn over 14,089 rows, is a **floor
+over 4.5% of moves** — not a market value.
+
+### Unchanged and expected
+
+39 orphan fixtures (league 88 season 2025) and 120 orphan players, both already
+explained above. `af_unmapped_transfer_type` is empty, so the 934 distinct raw
+type strings all carry a row.
+
+### Rebuild after the fixes — and the probe's duplicate finding was itself wrong
+
+Same partial cache (845 team files, 11,694 player files). Reclassification
+landed exactly as predicted: **482 rows moved out of `unknown`** — `free`
++197 (`€ Free` 187, `Free €` 10), `fee` +12 (the escaped-pound rows),
+`career_end` 268, `swap` +4, `trial` 1. `af_unmapped_transfer_type` is empty.
+
+**The euro total did not move** (€76,817,412,564 over 14,089 rows), which is
+the correct outcome: every newly-parsed fee was non-euro. The guard now reports
+**GBP (12 rows) and USD (8 rows)** — before the HTML-unescape fix the pound
+rows were invisible, filed as `unknown`.
+
+#### Correction 4 — there are NO byte-identical vendor duplicates
+
+The 2026-07-30 probe entry above records "the vendor emits byte-identical
+duplicates", citing player 19034 colliding twice on
+`(player, date, out, in)`. **That was wrong.** With per-file tracking:
+
+```
+corroborated by a club AND the player:                  53,602
+corroborated by two files of the same kind (both clubs): 73,438
+true vendor duplicates (one file, same move twice):           0
+```
+
+**Zero, over 464,657 rows.** The probe pooled every response in one list
+without recording which file each came from — and the two colliding rows were
+Ajax's `?team=194` file and Galatasaray's `?team=645` file reporting the same
+Ajax→Galatasaray move. Two clubs agreeing, read as one vendor duplicating. The
+probe had the same blind spot the ETL later had, one layer earlier.
+
+The design conclusion survives intact — the natural key still is not unique
+*across files*, so dedup still cannot be a `UNIQUE` constraint — but the stated
+reason was wrong and is corrected in `schema_af.sql` and `collect_transfers`.
+The `duplicate_within_file` counter stays: "zero so far" is not "impossible",
+and nothing else would notice if it changed.
+
+#### Correction 5 — the 21% `unknown` baseline was a sample artifact
+
+The 2026-07-30 entry gives ~21% `unknown` and I predicted the fixes would pull
+the full build down toward it. **They did not, and should not have:** the share
+went 30.7% → **30.5%**, and the floor is real.
+
+`N/A` alone is **89,324 rows = 28.5% of all transfers**. Everything still in
+`unknown` is a bare null-marker — `N/A`, `-`, empty, `Raise`, and
+currency-prefixed variants. Nothing is an unparsed format.
+
+The probe's 21% came from two clubs' files that happened to carry
+proportionally less `N/A`. **A baseline from one sample is not a baseline**,
+and quoting it as one turned a normal number into an apparent regression. The
+ETL guard now names 30.5% as measured and trips above 40%.
+
+#### Still partial
+
+Rebuild when the player crawl finishes; every count in this section is from
+12.6% of that work list, and `af_transfer` will grow substantially.

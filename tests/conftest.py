@@ -441,6 +441,34 @@ def af_connection(af_db_path):
 
 
 @pytest.fixture
+def af_client_without_transfers(tmp_path, monkeypatch):
+    """An HTTP client over a database built BEFORE the transfer tables existed.
+
+    `app/apifootball.db` is a committed binary artifact, so the schema in
+    schema_af.sql and the schema actually deployed move at different times —
+    code ships on push, the database only when someone rebuilds and commits it.
+    That gap took every /af/player/{id} and /af/team/{id} page to a 500 in
+    production. This fixture is that deployed file.
+    """
+    monkeypatch.setenv(auth.USER_VAR, _USER)
+    monkeypatch.setenv(auth.PASSWORD_VAR, _PASSWORD)
+    path = tmp_path / "apifootball.db"
+    _build_af_db(path)
+    writer = sqlite3.connect(path)
+    writer.executescript("""
+        DROP VIEW  IF EXISTS af_unmapped_transfer_type;
+        DROP VIEW  IF EXISTS af_transfer_detail;
+        DROP TABLE IF EXISTS af_transfer;
+        DROP TABLE IF EXISTS af_transfer_type;
+    """)
+    writer.commit()
+    writer.close()
+    monkeypatch.setattr("app.db.AF_DB_PATH", str(path))
+    from app.main import app
+    return TestClient(app, headers={"Authorization": _AUTH_HEADER})
+
+
+@pytest.fixture
 def af_client(tmp_path, monkeypatch):
     monkeypatch.setenv(auth.USER_VAR, _USER)
     monkeypatch.setenv(auth.PASSWORD_VAR, _PASSWORD)
