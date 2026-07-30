@@ -177,6 +177,7 @@ def _player_row(entity_id, raw, positions, countries):
         "date_of_birth": raw.get("date_of_birth"),
         "height": raw.get("height"),
         "weight": raw.get("weight"),
+        "image_path": raw.get("image_path"),
     }
 
 
@@ -203,16 +204,18 @@ def write_reference_tables(player_map, team_map, type_map, country_map, db_path=
             DROP TABLE IF EXISTS sportmonks_team;
             CREATE TABLE sportmonks_player (
                 id TEXT PRIMARY KEY, name TEXT, position TEXT, detailed_position TEXT,
-                nationality TEXT, date_of_birth TEXT, height_cm INTEGER, weight_kg INTEGER);
+                nationality TEXT, date_of_birth TEXT, height_cm INTEGER, weight_kg INTEGER,
+                image_path TEXT);
             CREATE TABLE sportmonks_team (
                 id TEXT PRIMARY KEY, name TEXT, country TEXT, founded INTEGER, short_code TEXT);
             CREATE TABLE IF NOT EXISTS sportmonks_type    (id TEXT PRIMARY KEY, name TEXT);
             CREATE TABLE IF NOT EXISTS sportmonks_country (id TEXT PRIMARY KEY, name TEXT);
         """)
         connection.executemany(
-            "INSERT OR REPLACE INTO sportmonks_player VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO sportmonks_player VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [(str(eid), row["name"], row["position"], row["detailed_position"],
-              row["nationality"], row["date_of_birth"], row["height"], row["weight"])
+              row["nationality"], row["date_of_birth"], row["height"], row["weight"],
+              row["image_path"])
              for eid, row in player_map.items()])
         connection.executemany(
             "INSERT OR REPLACE INTO sportmonks_team VALUES (?, ?, ?, ?, ?)",

@@ -56,7 +56,8 @@ CREATE TABLE player (
     nationality TEXT,
     date_of_birth TEXT,
     height_cm INTEGER,
-    weight_kg INTEGER
+    weight_kg INTEGER,
+    image_path TEXT
 );
 
 CREATE INDEX idx_player_name ON player(name COLLATE NOCASE);

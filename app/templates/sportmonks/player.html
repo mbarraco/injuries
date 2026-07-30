@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% import "macros.html" as macros %}{% import "sportmonks/_macros.html" as sm %}
 {% block title %}{{ player.name if player else 'Unknown player' }}{% endblock %}
 {% block heading %}{{ player.name if player else 'Unknown player' }}{% endblock %}
+{% block header_media %}{% if player and player.image_path %}<img class="player-photo" src="{{ player.image_path }}" alt="" loading="lazy">{% endif %}{% endblock %}
 {% block subtitle %}{% if player %}{{ player.detailed_position or player.position or 'Position unknown' }} · {{ player.nationality or 'Nationality unknown' }}{% if player.date_of_birth %} · born {{ player.date_of_birth }}{% endif %}{% if current_team %} · currently {{ sm.entity_link('team', current_team.id, current_team.name) }}{% endif %}{% endif %}{% endblock %}
 {% block content %}
 {{ macros.breadcrumbs(breadcrumbs) }}

@@ -340,9 +340,9 @@ def build(raw_dir=DEFAULT_RAW_DIR, reference_db=DEFAULT_REFERENCE_DB, out_db=DEF
     try:
         _say(verbose, "[2/5] loading reference dimensions …")
         players = {int(row[0]): row for row in reference.execute(
-            "SELECT id, name, position, detailed_position, nationality, date_of_birth, height_cm, weight_kg FROM sportmonks_player"
+            "SELECT id, name, position, detailed_position, nationality, date_of_birth, height_cm, weight_kg, image_path FROM sportmonks_player"
         )}
-        connection.executemany("INSERT INTO player VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        connection.executemany("INSERT INTO player VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                [(int(row[0]), *row[1:]) for row in players.values()])
         connection.executemany("INSERT INTO team VALUES (?, ?, ?, ?, ?)",
                                [(int(row[0]), *row[1:]) for row in reference.execute(

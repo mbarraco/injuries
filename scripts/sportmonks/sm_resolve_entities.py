@@ -426,7 +426,8 @@ def init_db():
             nationality       TEXT,
             date_of_birth     TEXT,
             height_cm         INTEGER,
-            weight_kg         INTEGER
+            weight_kg         INTEGER,
+            image_path        TEXT
         );
         CREATE TABLE sportmonks_team (
             id         TEXT PRIMARY KEY,
@@ -453,9 +454,10 @@ def save_lookup(conn, table, id_to_name):
 
 def save_players(conn, player_map):
     conn.executemany(
-        "INSERT OR REPLACE INTO sportmonks_player VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO sportmonks_player VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [(str(eid), p["name"], p["position"], p["detailed_position"],
-          p["nationality"], p["date_of_birth"], p["height"], p["weight"])
+          p["nationality"], p["date_of_birth"], p["height"], p["weight"],
+          p["image_path"])
          for eid, p in player_map.items()],
     )
     conn.commit()
@@ -512,6 +514,7 @@ def main():
             "date_of_birth": p.get("date_of_birth"),
             "height": p.get("height"),
             "weight": p.get("weight"),
+            "image_path": p.get("image_path"),
         }
         for eid, p in players.items()
     }

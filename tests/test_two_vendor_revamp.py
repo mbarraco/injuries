@@ -128,6 +128,19 @@ def test_grain_note_appears_on_every_af_page_showing_absence_counts(af_client):
         assert marker in response.text, f"{path} is missing the grain note"
 
 
+def test_sportmonks_player_page_shows_photo_thumbnail_when_known(client):
+    response = client.get("/sportmonks/player/5001")
+    assert 'class="player-photo"' in response.text
+    assert 'src="https://cdn.sportmonks.com/players/5001.png"' in response.text
+
+
+def test_sportmonks_player_page_omits_thumbnail_when_photo_unknown(client):
+    """Player 5003's reference row has a NULL image_path -- no <img> tag, not a
+    broken-image placeholder."""
+    response = client.get("/sportmonks/player/5003")
+    assert 'class="player-photo"' not in response.text
+
+
 def test_breadcrumbs_present_on_every_remaining_detail_page(af_client, client):
     for c, path in ((af_client, "/af/player/1"), (af_client, "/af/team/100"),
                     (af_client, "/af/league/10"), (client, "/sportmonks/player/5001")):

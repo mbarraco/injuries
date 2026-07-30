@@ -48,14 +48,14 @@ def reference_db(tmp_path):
     path = tmp_path / "coverage.db"
     connection = sqlite3.connect(path)
     connection.executescript("""
-        CREATE TABLE sportmonks_player (id TEXT PRIMARY KEY, name TEXT, position TEXT, detailed_position TEXT, nationality TEXT, date_of_birth TEXT, height_cm INTEGER, weight_kg INTEGER);
+        CREATE TABLE sportmonks_player (id TEXT PRIMARY KEY, name TEXT, position TEXT, detailed_position TEXT, nationality TEXT, date_of_birth TEXT, height_cm INTEGER, weight_kg INTEGER, image_path TEXT);
         CREATE TABLE sportmonks_team (id TEXT PRIMARY KEY, name TEXT, country TEXT, founded INTEGER, short_code TEXT);
         CREATE TABLE sportmonks_type (id TEXT PRIMARY KEY, name TEXT);
         CREATE TABLE sportmonks_season (id TEXT PRIMARY KEY, league_id TEXT, country TEXT, league_name TEXT, name TEXT, is_current INTEGER, dates_json TEXT);
         CREATE TABLE sportmonks_coverage (run_id INTEGER, country TEXT, league TEXT, sportmonks_id TEXT, year_bucket TEXT, record_count INTEGER, tier TEXT);
     """)
-    connection.execute("INSERT INTO sportmonks_player VALUES ('5001', 'A. Player', 'Defender', 'Centre Back', 'Brazil', '2000-01-01', 180, 75)")
-    connection.execute("INSERT INTO sportmonks_player VALUES ('5003', 'C. Player', 'Forward', 'Striker', 'Spain', '1995-06-15', 175, 70)")
+    connection.execute("INSERT INTO sportmonks_player VALUES ('5001', 'A. Player', 'Defender', 'Centre Back', 'Brazil', '2000-01-01', 180, 75, 'https://cdn.sportmonks.com/players/5001.png')")
+    connection.execute("INSERT INTO sportmonks_player VALUES ('5003', 'C. Player', 'Forward', 'Striker', 'Spain', '1995-06-15', 175, 70, NULL)")
     connection.execute("INSERT INTO sportmonks_team VALUES ('100', 'FC Test', 'Testland', 1900, 'FCT')")
     connection.execute("INSERT INTO sportmonks_team VALUES ('200', 'FC Rival', 'Testland', 1910, 'FCR')")
     connection.execute("INSERT INTO sportmonks_type VALUES ('500', 'Knock')")
