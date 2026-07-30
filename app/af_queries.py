@@ -40,6 +40,19 @@ def overview(connection):
     return result
 
 
+def landing_totals(connection):
+    """Dataset SIZE, for the neutral vendor-picker landing page -- see
+    queries.landing_totals() for why this is NOT overview()'s "players"/
+    "teams" (players/teams with a confirmed absence, not the table totals).
+    af_player and af_team are used directly rather than af_confirmed_absence,
+    matching the true row counts of those dimension tables."""
+    return dict(connection.execute("""
+        SELECT (SELECT COUNT(*) FROM af_confirmed_absence) AS absences,
+               (SELECT COUNT(*) FROM af_player) AS players,
+               (SELECT COUNT(*) FROM af_team) AS teams
+    """).fetchone())
+
+
 def quality_metrics(connection):
     return rows(connection, "SELECT metric, value, detail FROM af_data_quality ORDER BY metric")
 

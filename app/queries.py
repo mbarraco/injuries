@@ -15,6 +15,25 @@ def overview(connection):
     """).fetchone())
 
 
+def landing_totals(connection):
+    """Dataset SIZE, for the neutral vendor-picker landing page.
+
+    Deliberately NOT overview()'s "players"/"teams" -- those count only
+    players/teams with at least one recorded injury (COUNT(DISTINCT ... FROM
+    injury)), which is a real number but the wrong one here: a reader
+    comparing the two vendor cards side by side would read it as "how big is
+    this dataset" and quietly conclude Sportmonks and API-Football have
+    almost the same number of players, when the true totals differ by more
+    than 2x. This page exists specifically to let a reader size up both
+    vendors safely, so it gets the true table counts instead.
+    """
+    return dict(connection.execute("""
+        SELECT (SELECT COUNT(*) FROM injury) AS injuries,
+               (SELECT COUNT(*) FROM player) AS players,
+               (SELECT COUNT(*) FROM team) AS teams
+    """).fetchone())
+
+
 def quality_metrics(connection):
     return rows(connection, "SELECT metric, value, detail FROM data_quality ORDER BY metric")
 

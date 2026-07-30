@@ -26,6 +26,24 @@ def test_home_is_the_neutral_landing_page_now(both_vendors_client):
     assert "API-Football" in response.text
 
 
+def test_home_player_and_team_counts_are_true_dataset_totals(both_vendors_client, connection, af_connection):
+    """Regression guard for a real bug: the home page originally called
+    overview(), whose "players"/"teams" mean "players/teams with at least one
+    recorded injury/absence" -- a different, smaller number than the dataset's
+    actual size. On a page whose job is comparing two vendors at a glance,
+    that silently made very differently-sized datasets (13,306 vs 33,750
+    players in the real databases) look almost identical (9,205 vs 9,831).
+    The fixture databases reproduce the same shape: not every player in
+    af_player/player has a recorded absence, so the true count must exceed
+    the "distinct player_id in an absence table" count."""
+    true_sm_players = connection.execute("SELECT COUNT(*) FROM player").fetchone()[0]
+    true_af_players = af_connection.execute("SELECT COUNT(*) FROM af_player").fetchone()[0]
+
+    body = both_vendors_client.get("/").text
+    assert f">{true_sm_players:,}<" in body or str(true_sm_players) in body
+    assert f">{true_af_players:,}<" in body or str(true_af_players) in body
+
+
 def test_api_star_is_completely_unaffected_by_the_router_split(client):
     """The frozen contract. Every /api/* route must behave exactly as before
     -- same status, same shape -- because AGENTS.md documents external callers
