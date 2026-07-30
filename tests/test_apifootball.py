@@ -16,8 +16,8 @@ import tempfile
 
 from ingest.apifootball import injuries, paths
 from ingest.apifootball.client import (
-    AUTH_FAILED, EMPTY, ERROR, OK, PLAN_BLOCKED, QUOTA_EXHAUSTED,
-    ApiFootballClient, classify)
+    AUTH_FAILED, DAILY_EXHAUSTED, EMPTY, ERROR, OK, PLAN_BLOCKED,
+    QUOTA_EXHAUSTED, STOP_OUTCOMES, ApiFootballClient, classify)
 from ingest.core.cache import read_cache, write_cache
 
 
@@ -51,9 +51,51 @@ def test_classify_detects_auth_failure_inside_a_200():
 
 
 def test_classify_detects_quota_exhaustion_inside_a_200():
-    body = {"errors": {"requests": "You have reached the request limit for the day"},
-            "results": 0}
+    # Genuinely transient wording — no "day"/"daily" — so this is the
+    # per-minute case, distinct from test_classify_detects_daily_exhaustion_*
+    # below. (An earlier version of this test used "...limit for the day",
+    # which actually describes daily exhaustion and was reclassifying
+    # correctly once that detection was fixed — the test's wording, not the
+    # code, was wrong.)
+    body = {"errors": {"requests": "You have exceeded the requests per "
+                       "minute limit"}, "results": 0}
     assert classify(200, body)[0] == QUOTA_EXHAUSTED
+
+
+def test_classify_all_three_real_rate_limit_messages():
+    """The exact wordings captured 2026-07-29, verbatim from the response log.
+
+    Two of the three ALSO mention plan/subscription as an upsell, which is why
+    neither "plan first" nor "quota first" keyword ordering works — an earlier
+    fix ordered plan first and misread the middle message as PLAN_BLOCKED for
+    8 calls. Rate limiting has to be matched on its own distinctive phrasing.
+    """
+    messages = [
+        (429, "Too many requests. You have reached your per-minute request "
+              "limit. Please wait a few seconds before retrying or upgrade "
+              "your plan for higher limits."),
+        (200, "Too many requests. You have exceeded the limit of requests "
+              "per minute of your subscription."),
+        (200, "Too many requests. Your rate limit is 450 requests per minute."),
+    ]
+    for status, message in messages:
+        body = {"errors": {"rateLimit": message}, "results": 0}
+        assert classify(status, body)[0] == QUOTA_EXHAUSTED, message
+
+
+def test_classify_still_detects_genuine_plan_gating():
+    # Real plan gating does not say "too many requests" or name a per-minute
+    # window, so the rate-limit check above does not swallow it.
+    body = {"errors": {"plan": "Your subscription plan does not grant access "
+                       "to this season."}, "results": 0}
+    assert classify(200, body)[0] == PLAN_BLOCKED
+
+
+def test_classify_429_detail_is_never_the_string_null():
+    # json.dumps(None) == "null", which is truthy, so a `text or "HTTP 429"`
+    # fallback silently produced the literal detail "null".
+    _outcome, detail = classify(429, {"results": 0})
+    assert detail == "HTTP 429"
 
 
 def test_classify_maps_status_codes():
@@ -62,6 +104,65 @@ def test_classify_maps_status_codes():
     assert classify(403, None)[0] == AUTH_FAILED
     assert classify(503, None)[0] == ERROR
     assert classify(None, None)[0] == ERROR
+
+
+def test_classify_distinguishes_daily_from_per_minute_429():
+    # Measured 2026-07-29: a genuine daily-limit 429 names it explicitly.
+    daily_body = {"errors": {"rateLimit": "Too many requests. You have "
+                             "reached your daily request limit. Please try "
+                             "again later or upgrade your plan."}}
+    assert classify(429, daily_body)[0] == DAILY_EXHAUSTED
+
+    minute_body = {"errors": {"rateLimit": "Too many requests."}}
+    assert classify(429, minute_body)[0] == QUOTA_EXHAUSTED
+
+    # A bare 429 with no body at all must still classify as SOMETHING
+    # retryable, not silently fall through.
+    assert classify(429, None)[0] == QUOTA_EXHAUSTED
+
+
+def test_classify_detects_daily_exhaustion_delivered_as_a_200():
+    # The decisive case: this vendor is NOT consistent about status code for
+    # the exact same condition. Measured 2026-07-29, same day: one run got
+    # daily exhaustion as HTTP 429, a LATER run got the identical wall as
+    # HTTP 200 with a differently-worded message. A version of classify() that
+    # only checked for "daily" inside the 429 branch missed this entirely — it
+    # fell through to the generic quota-ish substring match, which returns
+    # QUOTA_EXHAUSTED (retryable), and the client retried a daily wall 5 times
+    # per call (20 calls burned for 4 logical fetches) before this was fixed.
+    body_200 = {"errors": {"requests": "You have reached the request limit "
+                          "for the day, Go to https://dashboard.api-football.com "
+                          "to upgrade your plan."},
+               "results": 0, "response": []}
+    assert classify(200, body_200)[0] == DAILY_EXHAUSTED
+
+
+def test_classify_checks_daily_wording_before_any_status_branch():
+    # The daily check must run first and independent of status, since the
+    # vendor has been observed to deliver the SAME condition at both 429 and
+    # 200. Parametrising across both status codes with identical wording
+    # locks that in.
+    body = {"errors": {"requests": "limit for the day"}, "results": 0}
+    assert classify(429, body)[0] == DAILY_EXHAUSTED
+    assert classify(200, body)[0] == DAILY_EXHAUSTED
+
+
+def test_daily_exhausted_is_a_stop_outcome_but_transient_quota_is_not():
+    # get() already retries a transient 429 internally; if it still escapes as
+    # an outcome, retries were exhausted too, so it belongs in STOP_OUTCOMES
+    # alongside the daily case. Both must stop a multi-item crawl; neither
+    # should be silently retried again by the caller.
+    assert DAILY_EXHAUSTED in STOP_OUTCOMES
+    assert QUOTA_EXHAUSTED in STOP_OUTCOMES
+
+
+def test_classify_daily_check_does_not_false_positive_on_healthy_bodies():
+    # The daily check runs before anything else, so it must not catch a
+    # healthy response's errors=[] (falsy, skipped) or an unrelated real
+    # error that happens not to mention "day".
+    assert classify(200, {"errors": [], "results": 5})[0] == OK
+    assert classify(200, {"errors": {"token": "invalid api key"},
+                          "results": 0})[0] == AUTH_FAILED
 
 
 def test_classify_treats_empty_error_containers_as_healthy():
@@ -314,7 +415,7 @@ def test_fetch_does_not_cache_access_failures(monkeypatch):
     # PLAN_BLOCKED / AUTH / QUOTA describe OUR ACCESS, not the data. Caching one
     # would freeze a temporary condition into the permanent record and hide the
     # gap from every later run.
-    for outcome in (PLAN_BLOCKED, AUTH_FAILED, QUOTA_EXHAUSTED, ERROR):
+    for outcome in (PLAN_BLOCKED, AUTH_FAILED, QUOTA_EXHAUSTED, DAILY_EXHAUSTED, ERROR):
         with tempfile.TemporaryDirectory() as directory:
             _in_temp_cache(monkeypatch, directory)
             client = _StubClient(([], outcome, "blocked", False))

@@ -376,3 +376,150 @@ because both produced confident, well-formed, wrong output:
    misleading.
 3. The first absence table also counted `Questionable` rows as absences,
    overstating every figure by ~13% (e.g. 39,958 vs 35,879 at a 30-day gap).
+
+### Tiers 1–3 collected — everything except per-fixture detail
+Fetched 2026-07-29 across two runs (`ingest.apifootball.crawl`):
+
+| target | records | league-seasons | notes |
+|---|---|---|---|
+| injuries | 129,016 | 117 | 112 calls |
+| fixtures | **32,238** | 117 | all `ok` |
+| teams | 2,947 | 117 | team-seasons |
+| standings | 115 | 117 | **2 empty** — Super Cup et al. have no table |
+| players | **75,213** | 117 | 2 empty; paginated ~25 pages each |
+| team statistics | 2,947 | — | one per team-season, all `ok` |
+
+- Total spend for tiers 1–3: **~6,500 calls**, well inside one day (7,500).
+  Day ended with 419 remaining.
+- **19,803 of 32,238 fixtures (61%) carry at least one absence record.** A
+  useful sanity signal: sparse or broken coverage would sit far lower.
+- **`/players` is paginated (~25 calls per league-season)** — the only target
+  here where one item is not one call. An early cost estimate treated it as 1
+  and under-reported it ~25x. Now modelled explicitly via a `pages` field per
+  target.
+- **Resumability verified in the wild, not just in tests.** A run interrupted
+  mid-`players` left 27 league-seasons cached; the next run detected them and
+  fetched only the missing 90.
+- Progress reporting had to be fixed twice for the same underlying reason: a
+  fixed stride assumes one job is one call. With paginated jobs, a stride of 25
+  meant ~2.5 minutes of silence, which reads as a hang — the exact failure
+  `logbook/sportmonks.md` records for an early batch script (2026-07-23).
+  Both crawlers now scale the stride to the work.
+
+### Daily quota exhaustion was retried like a per-minute one — wasted 16 calls
+- First `fixture_detail` run hit the real daily wall (420 `ok`, then
+  `quota_exhausted`) and the client retried it 4 times with 10/20/40/60s
+  backoff before giving up — a wait for a window that would not clear for
+  hours, not seconds.
+- Worse: the run's final `quota()` read `day_remaining: 7499` — a number from
+  BEFORE the exhaustion. The daily 429's body carries **no rate-limit
+  headers at all** (`quota: {}` in the log), so nothing ever corrected the
+  stale reading. A crawl trusting that number would believe it had a full
+  day's budget when it had none.
+- The real body: `{"rateLimit": "Too many requests. You have reached your
+  daily request limit. Please try again later or upgrade your plan."}` —
+  named explicitly, distinguishable from a generic per-minute 429
+  (`"Too many requests."` with no "daily" wording).
+- Fixed: `classify()` now returns a separate `DAILY_EXHAUSTED` outcome by
+  reading the body text, and `get()` returns it immediately with **no
+  retry** and forces the client's `day_remaining` to 0 directly, since the
+  headers cannot. Both crawlers stop on `DAILY_EXHAUSTED` exactly as they
+  did on the old single `QUOTA_EXHAUSTED`.
+- Progress reporting had the same "100% but nothing happened" bug as the
+  stride issue above: counting stop-skipped items as done made an aborted
+  run's final line read `32,238/32,238 · 100.0%` after fetching only 420.
+  Fixed to track fetched-vs-skipped separately.
+
+### Upgraded Pro -> Ultra: both ceilings scaled, confirmed via /status
+- **75,000 requests/day** (was 7,500) and **450/minute** (was 300) — confirmed
+  by re-running `af_status_and_coverage.py --refresh`, not assumed. The
+  per-minute figure was worth checking explicitly: plan tiers commonly scale
+  daily volume without touching the per-request-rate ceiling, since that is
+  often an abuse control rather than a subscription entitlement. Here it moved
+  too.
+- Coverage re-checked in the same call: still 47/58, same dark list, San
+  Marino still shows 2025. No drift since the 2026-07-29 measurement.
+- **Revised tier-4 timeline.** Pacing (450/min x 0.8 safety margin) is now
+  ~360/min sustained, ~6/s — and at that rate the PER-MINUTE pacing, not the
+  daily budget, is the binding constraint for the smaller job:
+  - `players` only (~32,000 calls): ~32,000 / 75,000 fits in one day's quota
+    with room to spare, and at ~6/s the wall-clock pacing time is ~1.5 hours.
+  - all four endpoints (~129,000 calls): exceeds one day's 75,000 quota, so
+    it spans two calendar days — the daily budget is spent, the run stops
+    cleanly, resumes the next day for the remainder. Total ACTUAL fetching
+    time is still only ~6 hours of pacing, just split across the quota reset.
+    Down from an estimated 17 days on the Pro tier.
+- Net effect: the earlier "players first, statistics last" sequencing to
+  conserve scarce daily quota matters much less now — the binding constraint
+  shifted from days of daily-budget to hours of per-minute pacing. Running
+  `--endpoints all` in one sitting is now reasonable where it previously
+  was not.
+
+---
+
+## 2026-07-30
+
+### CRAWL COMPLETE — all endpoints, all 47 competitions, 2020–2025
+Finished on the Ultra plan. Everything the plan set out to collect is on disk.
+
+| layer | unit | count | notes |
+|---|---|---|---|
+| injuries | league-season | 117 | **129,016** absence rows |
+| fixtures | league-season | 117 | **32,238** fixtures |
+| teams | league-season | 117 | 2,947 team-seasons |
+| standings | league-season | 115 | 2 legitimately empty (no table) |
+| players | league-season | 117 | ~**93,800** player-seasons after repair |
+| team statistics | team-season | 2,947 | one call each |
+| fixture players | fixture | **32,238** | 100% — the minutes source |
+| fixture lineups | fixture | **32,238** | 100% |
+| fixture events | fixture | **32,238** | 100% — **450,943** events |
+| fixture statistics | fixture | **32,238** | 100% — 54,398 records |
+
+- Per-fixture crawl cost **61,412 calls in one session** (~6 hours of pacing),
+  finishing with 13,924 of 75,000 daily quota still unspent. The 17-day
+  estimate from the Pro tier collapsed to a single day.
+- `empty` outcomes are legitimate, not failures: 922 fixtures have no events
+  and 5,038 no statistics — overwhelmingly future or unplayed fixtures in the
+  current season. Exactly one hard `error` across 32,238 statistics calls.
+
+### Truncation repair recovered ~18,500 player-seasons — in the biggest leagues
+- The 16 truncated files held exactly 1,000 records each (50 pages x 20, the
+  old `max_pages` ceiling). Re-fetched at 500 pages they hold **34,582** — so
+  roughly **18,500 player-season records had been silently missing**.
+- The affected competitions were La Liga, Serie A, the Premier League, Türkiye,
+  Champions League and Europa League — i.e. the deepest, most-queried leagues.
+  A truncated player list means a truncated **minutes denominator**, which
+  *inflates* injury rates. Nothing would have errored; the rates would simply
+  have been too high for the leagues most likely to be looked at.
+- **`truncated: true` had been written faithfully into those cache files for
+  hours and nothing ever read it.** The crawl reported `{'ok': 117}` throughout.
+  Found only by a deliberate code review, not by any runtime signal.
+- **Lesson: a recorded warning nobody reads is not a safeguard.** The value of
+  `truncated` was zero until something surfaced it. `report_truncation()` now
+  runs after every crawl and scans the whole cache, so the check applies to
+  historical files too, not just the run that just finished.
+
+### Rate-limit classification: three distinct wordings, all per-minute
+Captured verbatim (see `logs/apifootball-crawl.20260729-142857.log`):
+
+| status | message |
+|---|---|
+| 429 | "...reached your per-minute request limit ... or upgrade your **plan**" |
+| 200 | "...exceeded the limit of requests per minute of your **subscription**" |
+| 200 | "Your **rate limit** is 450 requests per minute." |
+
+- **Neither keyword ordering works.** Two of the three mention plan/subscription
+  as an upsell, so a plan-before-quota order misreads them as `PLAN_BLOCKED`
+  (this happened, 8 times); a quota-before-plan order would misread genuine
+  plan gating that mentions a limit. Rate limiting must be matched on its own
+  distinctive phrasing (`too many requests`, `per-minute`, `rate limit`).
+- All three are now pinned verbatim in `tests/test_apifootball.py` so a future
+  reorder cannot silently undo the fix.
+
+### Two crawler processes share one quota but pace independently
+- Running `crawl` and `fixture_detail` simultaneously produced per-minute 429s
+  with ~58,000 daily calls still available: each client paces to ~360/min on
+  its own, so two together aim at ~720/min against a 450/min ceiling.
+- **Operational rule: one crawler at a time**, or halve `--concurrency` on each.
+  The pacer is per-process and cannot coordinate; fixing that properly would
+  need a lockfile or shared counter, which is not worth it here.

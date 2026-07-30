@@ -41,14 +41,11 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 from ingest.apifootball import paths
-from ingest.apifootball.client import EMPTY, OK, ApiFootballClient
+from ingest.apifootball.client import (
+    CACHEABLE_OUTCOMES as CACHEABLE, EMPTY, OK, ApiFootballClient)
 from ingest.core.cache import read_cache, write_cache
 
 DEFAULT_CONCURRENCY = 4
-
-# Outcomes that describe the DATA (and so are worth persisting) versus those
-# that describe our ACCESS (and so must be retried on a later run).
-CACHEABLE = (OK, EMPTY)
 
 
 def fetch_league_season(client, league_id, season, refresh=False):

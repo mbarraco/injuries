@@ -20,11 +20,23 @@ import os
 BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 RAW_ROOT = os.path.join(BASE, "data", "raw", "apifootball")
+
+# Per (league, season).
 INJURIES_DIR = os.path.join(RAW_ROOT, "injuries")
 FIXTURES_DIR = os.path.join(RAW_ROOT, "fixtures")
 TEAMS_DIR = os.path.join(RAW_ROOT, "teams")
 STANDINGS_DIR = os.path.join(RAW_ROOT, "standings")
+PLAYERS_DIR = os.path.join(RAW_ROOT, "players")
+
+# Per (league, season, team).
 TEAM_STATS_DIR = os.path.join(RAW_ROOT, "team_statistics")
+
+# Per fixture — the long tail. Four endpoints x ~40,000 fixtures, so these
+# directories hold the overwhelming majority of the cache by file count.
+FIXTURE_EVENTS_DIR = os.path.join(RAW_ROOT, "fixture_events")
+FIXTURE_LINEUPS_DIR = os.path.join(RAW_ROOT, "fixture_lineups")
+FIXTURE_PLAYERS_DIR = os.path.join(RAW_ROOT, "fixture_players")
+FIXTURE_STATS_DIR = os.path.join(RAW_ROOT, "fixture_statistics")
 
 LEAGUES_FILE = os.path.join(RAW_ROOT, "leagues.json")
 STATUS_FILE = os.path.join(RAW_ROOT, "status.json")
@@ -44,6 +56,17 @@ def league_season_path(directory, league_id, season):
 def team_season_path(league_id, season, team_id):
     """Cache key for one (league, season, team) stats response."""
     return os.path.join(TEAM_STATS_DIR, f"{league_id}_{season}_{team_id}.json")
+
+
+def fixture_path(directory, fixture_id):
+    """Cache key for one fixture's detail: e.g. fixture_events/686314.json.
+
+    Sharded two levels deep by the id's last digits. ~40,000 files in a single
+    directory is slow to list on most filesystems and painful to inspect by
+    hand; four such directories would be worse.
+    """
+    shard = f"{int(fixture_id) % 100:02d}"
+    return os.path.join(directory, shard, f"{fixture_id}.json")
 
 
 def load_coverage():

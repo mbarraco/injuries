@@ -32,6 +32,7 @@ Three behaviours worth knowing about:
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -41,10 +42,14 @@ import requests
 API = "https://v3.football.api-sports.io"
 
 # Plan ceilings. Read from response headers on the first call and corrected in
-# place, so these only ever seed the pacer before anything is observed. Pro
-# measured 2026-07-29: 7500/day, 300/min.
-DEFAULT_DAY_LIMIT = 7500
-DEFAULT_MINUTE_LIMIT = 300
+# place, so these only ever seed the pacer/dry-run estimates before anything is
+# observed — a wrong seed here does not throttle a live run, it only makes a
+# --dry-run cost estimate wrong until the first real request lands.
+# Pro measured 2026-07-29: 7,500/day, 300/min. Upgraded to Ultra same day,
+# confirmed via /status: 75,000/day AND 450/min — both scaled, not just the
+# daily figure.
+DEFAULT_DAY_LIMIT = 75_000
+DEFAULT_MINUTE_LIMIT = 450
 
 # Fraction of the per-minute ceiling we actually aim for. Headroom matters
 # because the vendor's window boundary and ours are not synchronised — pacing
@@ -53,8 +58,32 @@ MINUTE_SAFETY = 0.8
 
 # Outcome classes for a response body. `OK` and `EMPTY` are both successes and
 # both cacheable; the rest are failures with different remedies.
-OK, EMPTY, PLAN_BLOCKED, AUTH_FAILED, QUOTA_EXHAUSTED, ERROR = (
-    "ok", "empty", "plan_blocked", "auth_failed", "quota_exhausted", "error")
+OK, EMPTY, PLAN_BLOCKED, AUTH_FAILED, QUOTA_EXHAUSTED, DAILY_EXHAUSTED, ERROR = (
+    "ok", "empty", "plan_blocked", "auth_failed", "quota_exhausted",
+    "daily_exhausted", "error")
+
+# Outcomes that describe the DATA, and so are safe to persist. The others
+# describe our ACCESS at a moment in time; caching one would freeze a temporary
+# condition into the permanent record and hide the gap from every later run.
+CACHEABLE_OUTCOMES = (OK, EMPTY)
+
+# Outcomes that mean "stop the whole run now", as opposed to "this one item
+# failed, move on". QUOTA_EXHAUSTED (a transient per-minute 429) is NOT here:
+# get() already retries it internally, so if it still escapes as an outcome,
+# retries were exhausted too and continuing is equally pointless.
+STOP_OUTCOMES = (DAILY_EXHAUSTED, QUOTA_EXHAUSTED)
+
+# Matches "daily" and standalone "day" but not e.g. "Sunday" or "matchday" —
+# both observed vendor wordings ("your daily request limit", "limit for the
+# day") satisfy this without over-matching unrelated text.
+_DAILY_WORDING = re.compile(r"\bdaily\b|\bday\b")
+
+# Distinctive rate-limit phrasing, checked before the plan/quota keywords since
+# those appear in BOTH rate-limit and plan-gating messages. Kept narrow on
+# purpose: "too many requests", an explicit per-minute window, or the literal
+# words "rate limit" — all three observed 2026-07-29.
+_RATE_LIMIT_WORDING = re.compile(
+    r"too many requests|per[- ]minute|requests per minute|rate limit")
 
 
 def classify(status, body):
@@ -63,11 +92,38 @@ def classify(status, body):
     API-Football signals problems inside a 200 response, so status alone is not
     enough. `errors` is `[]` when healthy and a dict of messages when not; the
     key names which subsystem complained (`plan`, `token`, `requests`, …).
+
+    **The vendor is inconsistent about which status code carries daily
+    exhaustion.** Measured 2026-07-29, same wall, same day: one run got it as
+    HTTP 429 ("You have reached your daily request limit..."), a later run got
+    the identical condition as HTTP **200** ("You have reached the request
+    limit for the day..."). An earlier version of this function only checked
+    for "daily" inside the `status == 429` branch, so the 200 case fell through
+    to the generic quota-ish substring match below and was retried 5 times per
+    call — the opposite of what daily exhaustion needs. The daily check must
+    therefore run first, against the body, before any branch on status code.
     """
+    if body is not None and isinstance(body, dict):
+        errors = body.get("errors")
+        if errors:
+            text = json.dumps(errors) if isinstance(errors, dict) else str(errors)
+            # Word-boundary match on both "daily" and "day" — a plain
+            # substring check for "day" does NOT match "daily" (d-a-i-l-y has
+            # no "d-a-y" run), which is exactly the wording the vendor used on
+            # a genuine daily-limit 429 (measured 2026-07-29). Missing that
+            # let the condition fall through to the generic quota match below
+            # and be retried 5x per call before this was caught.
+            if _DAILY_WORDING.search(text.lower()):
+                return DAILY_EXHAUSTED, text
+
     if status is None:
         return ERROR, "no response"
     if status == 429:
-        return QUOTA_EXHAUSTED, "HTTP 429"
+        # Guard on the key's presence, not just body being a dict: a dict with
+        # no "errors" key yields json.dumps(None) == "null", which is truthy
+        # and would surface as the literal detail string "null".
+        errors = body.get("errors") if isinstance(body, dict) else None
+        return QUOTA_EXHAUSTED, (json.dumps(errors) if errors else "HTTP 429")
     if status in (401, 403):
         return AUTH_FAILED, f"HTTP {status}"
     if status != 200:
@@ -81,12 +137,24 @@ def classify(status, body):
     if errors:
         text = json.dumps(errors) if isinstance(errors, dict) else str(errors)
         lowered = text.lower()
-        if "token" in lowered or "key" in lowered:
+        if "token" in lowered or "api key" in lowered:
             return AUTH_FAILED, text
-        if "limit" in lowered or "reached" in lowered or "requests" in lowered:
+        # Rate limiting is matched FIRST, on its own distinctive wording,
+        # because neither "plan" nor "limit" discriminates. All three observed
+        # rate-limit messages (2026-07-29) name the window explicitly, and two
+        # of them ALSO mention plan/subscription as an upsell:
+        #   "...reached your per-minute request limit ... or upgrade your plan"
+        #   "...exceeded the limit of requests per minute of your subscription"
+        #   "Your rate limit is 450 requests per minute."
+        # Ordering plan-before-quota misread the middle one as PLAN_BLOCKED;
+        # ordering quota-before-plan would misread genuine plan gating that
+        # mentions a limit. Matching the specific phrase avoids both.
+        if _RATE_LIMIT_WORDING.search(lowered):
             return QUOTA_EXHAUSTED, text
         if "plan" in lowered or "subscription" in lowered:
             return PLAN_BLOCKED, text
+        if "limit" in lowered or "reached" in lowered or "requests" in lowered:
+            return QUOTA_EXHAUSTED, text
         return ERROR, text
 
     # No errors: a zero-result answer is genuine absence of data, not failure.
@@ -257,6 +325,18 @@ class ApiFootballClient:
 
             outcome, detail = classify(response.status_code, body)
 
+            if outcome == DAILY_EXHAUSTED:
+                # Never retry: the window resets in hours, not seconds. Force
+                # day_remaining to 0 directly rather than trust the headers —
+                # they are either absent (measured on a 429 delivery) or
+                # present but STALE, still showing the pre-exhaustion count
+                # (measured on a 200 delivery, same day: headers read 7499
+                # while the body said the day's limit was reached). Either
+                # way the header cannot be relied on to reflect exhaustion.
+                with self._quota_lock:
+                    self._day_remaining = 0
+                return response.status_code, body, outcome, detail
+
             if outcome == QUOTA_EXHAUSTED:
                 if attempt == self.max_retries:
                     return response.status_code, body, outcome, detail
@@ -278,7 +358,7 @@ class ApiFootballClient:
     # ------------------------------------------------------------------ #
     # Pagination — API-Football reports paging.current / paging.total.
     # ------------------------------------------------------------------ #
-    def get_all(self, path, params=None, max_pages=50):
+    def get_all(self, path, params=None, max_pages=500):
         """Fetch every page. Returns (items, outcome, detail, truncated).
 
         `truncated` is True only when max_pages was reached with pages still
@@ -286,6 +366,14 @@ class ApiFootballClient:
         than merely small. A partial failure mid-pagination returns the pages
         gathered so far alongside the failing outcome, so nothing already paid
         for is discarded.
+
+        **max_pages is a safety valve, not a budget.** Pagination stops
+        naturally at `paging.total`, so a high ceiling costs nothing on small
+        responses. It was 50, which capped /players at 1,000 records and
+        silently truncated 20 league-seasons — La Liga, the Premier League,
+        both big UEFA cups — i.e. exactly the competitions with the most
+        players. Set high enough that hitting it means something is genuinely
+        wrong rather than merely large.
 
         **`page` is omitted from the first request.** API-Football's endpoints
         are not uniform: `/injuries` rejects the field outright with
