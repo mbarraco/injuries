@@ -3,11 +3,11 @@ import os
 
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app import af_routes, auth, db, matrix, queries
+from app import af_routes, db, matrix, queries
+from app.auth import verify_auth
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI(title="Injury Data POC")
@@ -16,13 +16,6 @@ templates = Jinja2Templates(directory=os.path.join(HERE, "templates"))
 # Additive: API-Football lives at /af/*, its own database, its own query
 # layer. Shares auth, static assets and the base layout/macros only.
 app.include_router(af_routes.router)
-
-security = HTTPBasic()
-
-async def verify_auth(credentials: HTTPBasicCredentials = Depends(security)):
-    if not auth.verify(credentials.username, credentials.password):
-        raise HTTPException(status_code=401, detail="Invalid credentials", headers={"WWW-Authenticate": "Basic"})
-    return credentials.username
 
 
 def _connection():

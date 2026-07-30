@@ -1,35 +1,24 @@
 """API-Football routes, mounted under /af by app/main.py.
 
 Additive only: nothing here touches the existing Sportmonks routes, database,
-or templates. Shares `auth`, `db` (via `connect_af`), and the base layout /
-macros — see `docs/superpowers/plans/2026-07-29-apifootball-ingestion.md` for
-why a full second app was rejected in favour of this.
+or templates. Shares `auth` (including `verify_auth`), `db` (via
+`connect_af`), and the base layout / macros — see
+`docs/superpowers/plans/2026-07-29-apifootball-ingestion.md` for why a full
+second app was rejected in favour of this.
 """
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 
 from app import af_queries, auth, db
-
-# A second HTTPBasic()/verify_auth pair, deliberately not imported from
-# app.main: main.py imports this module to mount the router, so importing
-# back from main would be circular.
+from app.auth import verify_auth
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 templates = Jinja2Templates(directory=os.path.join(HERE, "templates"))
 
 router = APIRouter(prefix="/af")
-security = HTTPBasic()
-
-
-async def verify_auth(credentials: HTTPBasicCredentials = Depends(security)):
-    if not auth.verify(credentials.username, credentials.password):
-        raise HTTPException(status_code=401, detail="Invalid credentials",
-                            headers={"WWW-Authenticate": "Basic"})
-    return credentials.username
 
 
 def _connection():
