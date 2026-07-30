@@ -1,0 +1,31 @@
+{% extends "base.html" %}{% import "macros.html" as macros %}
+{% block title %}Injury Data{% endblock %}{% block heading %}Injury Data{% endblock %}
+{% block subtitle %}Two vendors, two databases, deliberately not merged — pick one to explore.{% endblock %}
+{% block content %}
+
+<section><div class="vendor-cards">
+
+<div class="vendor-card" data-vendor-scope="sportmonks">
+  <h2>Sportmonks</h2>
+  <p class="note">Measured injury spells with real start/end dates and games missed, across 62 UEFA competitions. Domestic history is capped at 3 seasons by the plan; cups reach back to 2000.</p>
+  <div class="stat-row">
+    {{ macros.stat(sportmonks.injuries, 'Injuries') }}
+    {{ macros.stat(sportmonks.players, 'Players') }}
+    {{ macros.stat(sportmonks.teams, 'Teams') }}
+  </div>
+  <p><a href="/sportmonks/">Enter Sportmonks →</a></p>
+</div>
+
+<div class="vendor-card" data-vendor-scope="af">
+  <h2>API-Football</h2>
+  <p class="note">Player-fixture absence records — no spell id, no start/end date — across 47 UEFA competitions, seasons 2020–2025. Wider coverage, shallower grain: the two vendors are not comparable row-for-row.</p>
+  <div class="stat-row">
+    {{ macros.stat(af.absences, 'Confirmed absences') }}
+    {{ macros.stat(af.players, 'Players') }}
+    {{ macros.stat(af.teams, 'Teams') }}
+  </div>
+  <p><a href="/af/">Enter API-Football →</a></p>
+</div>
+
+</div></section>
+{% endblock %}

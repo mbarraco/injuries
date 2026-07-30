@@ -12,12 +12,14 @@ def test_api_injuries_filters_ongoing(client):
 
 
 @pytest.mark.parametrize("path, content", [
-    # Coverage moved off "/" — good POC landing page, poor product homepage.
-    ("/", "Dashboard"),
-    ("/coverage", "Coverage &amp; Data Quality"),
-    ("/analytics", "Injuries by position"),
-    ("/absences", "Absences"),
-    ("/player/5001", "A. Player"),
+    # Coverage moved off "/sportmonks/" — good POC landing page, poor product
+    # homepage. "/" itself is now the neutral two-vendor landing page, not this
+    # dashboard — see test_home.py.
+    ("/sportmonks/", "Dashboard"),
+    ("/sportmonks/coverage", "Coverage &amp; Data Quality"),
+    ("/sportmonks/analytics", "Injuries by position"),
+    ("/sportmonks/absences", "Absences"),
+    ("/sportmonks/player/5001", "A. Player"),
 ])
 def test_pages_render(client, path, content):
     response = client.get(path)

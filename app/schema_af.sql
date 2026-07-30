@@ -81,7 +81,8 @@ CREATE TABLE af_player (
     birth_country TEXT,                -- 100%
     nationality   TEXT,                -- 100%
     height_cm     INTEGER,             -- 70.0%  <- sparse
-    weight_kg     INTEGER              -- 57.9%  <- sparse
+    weight_kg     INTEGER,             -- 57.9%  <- sparse
+    photo_url     TEXT                 -- vendor CDN URL, near-100% populated
 );
 
 CREATE INDEX idx_af_player_name ON af_player(name COLLATE NOCASE);

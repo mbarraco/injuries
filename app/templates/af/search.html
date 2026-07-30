@@ -1,9 +1,9 @@
-{% extends "base.html" %}{% import "macros.html" as macros %}
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "af/_macros.html" as af %}
 {% block title %}Search{% endblock %}{% block heading %}Search{% endblock %}
 {% block subtitle %}{% if query %}Results for "{{ query }}"{% else %}Find a player, team or league.{% endif %}{% endblock %}
 {% block content %}
 <section><div class="card">
-<form method="get" action="/search" class="filters">
+<form method="get" action="/af/search" class="filters">
   <div><label>Query</label><input type="search" name="q" value="{{ query }}" autocomplete="off" placeholder="At least 2 characters…"></div>
   <button>Search</button>
 </form>

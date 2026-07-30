@@ -46,7 +46,7 @@ def test_summary_totals_only_disclosed_fees_and_says_how_many(connection):
 
 
 def test_player_page_shows_type_and_fee(client):
-    body = client.get("/player/5001").text
+    body = client.get("/sportmonks/player/5001").text
 
     assert "Free Transfer" in body
     assert "Loan" in body
@@ -58,14 +58,14 @@ def test_player_page_shows_type_and_fee(client):
 def test_free_transfer_is_not_presented_as_missing_data(client):
     """A free transfer HAS no fee; a loan with no disclosed fee is unknown.
     Rendering both as an empty cell would misreport the first as a gap."""
-    body = client.get("/player/5001").text
+    body = client.get("/sportmonks/player/5001").text
 
     assert 'title="A free transfer has no fee"' in body
     assert 'title="No fee disclosed for this move"' in body
 
 
 def test_team_page_reports_spend_with_its_basis(client):
-    body = client.get("/team/100").text
+    body = client.get("/sportmonks/team/100").text
 
     assert "disclosed fees" in body
     assert "5,000,000" in body

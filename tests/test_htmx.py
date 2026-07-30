@@ -19,4 +19,4 @@ def test_htmx_is_vendored():
 
 
 def test_pages_load_htmx(client):
-    assert "/static/htmx.min.js" in client.get("/").text
+    assert "/static/htmx.min.js" in client.get("/sportmonks/").text

@@ -196,49 +196,49 @@ def test_transfer_lands_in_the_season_its_date_falls_within(tmp_path, raw_cache_
 
 
 def test_admin_index_lists_every_measure(client):
-    body = client.get("/admin").text
+    body = client.get("/sportmonks/admin").text
     for measure in ("absences", "transfers", "minutes", "fixtures"):
         assert f"/admin/matrix/{measure}" in body
 
 
 def test_matrix_page_renders_a_grid(client):
-    response = client.get("/admin/matrix/absences")
+    response = client.get("/sportmonks/admin/matrix/absences")
     assert response.status_code == 200
     assert "2024/2025" in response.text
 
 
 def test_unknown_measure_is_404(client):
-    assert client.get("/admin/matrix/nonsense").status_code == 404
+    assert client.get("/sportmonks/admin/matrix/nonsense").status_code == 404
 
 
 def test_league_rows_drill_into_clubs(client):
-    assert 'href="/admin/matrix/absences/league/10"' in client.get("/admin/matrix/absences").text
+    assert 'href="/sportmonks/admin/matrix/absences/league/10"' in client.get("/sportmonks/admin/matrix/absences").text
 
 
 def test_club_scope_page_drills_into_players(client):
-    body = client.get("/admin/matrix/absences/league/10").text
-    assert 'href="/admin/matrix/absences/team/100"' in body
+    body = client.get("/sportmonks/admin/matrix/absences/league/10").text
+    assert 'href="/sportmonks/admin/matrix/absences/team/100"' in body
 
 
 def test_unknown_league_in_drill_down_is_404(client):
-    assert client.get("/admin/matrix/absences/league/999999").status_code == 404
+    assert client.get("/sportmonks/admin/matrix/absences/league/999999").status_code == 404
 
 
 def test_unknown_team_in_drill_down_is_404(client):
-    assert client.get("/admin/matrix/absences/team/999999").status_code == 404
+    assert client.get("/sportmonks/admin/matrix/absences/team/999999").status_code == 404
 
 
 def test_fixtures_measure_has_no_drill_down_link(client):
     """fixture_coverage carries no club/player dimension, so unlike every
     other measure the league row must render as plain text, not a link."""
-    body = client.get("/admin/matrix/fixtures").text
-    assert 'href="/admin/matrix/fixtures/league/' not in body
+    body = client.get("/sportmonks/admin/matrix/fixtures").text
+    assert 'href="/sportmonks/admin/matrix/fixtures/league/' not in body
 
 
 def test_fixtures_club_scope_route_is_404(client):
     """Not just unlinked — genuinely unreachable, since matrix.build() raises
     for a scope a measure doesn't support."""
-    assert client.get("/admin/matrix/fixtures/league/10").status_code == 404
+    assert client.get("/sportmonks/admin/matrix/fixtures/league/10").status_code == 404
 
 
 # --- cell-level detail ----------------------------------------------------
@@ -286,12 +286,12 @@ def test_player_scope_cells_link_to_detail(client):
     """Jinja's `urlencode` filter leaves `/` unescaped in a plain string —
     fine here, since a query value's `/` doesn't need escaping (the browser
     and FastAPI's parser both split on `&`/`=`, not `/`)."""
-    body = client.get("/admin/matrix/absences/team/100").text
-    assert 'href="/admin/matrix/absences/player/5001/detail?season=2024/2025"' in body
+    body = client.get("/sportmonks/admin/matrix/absences/team/100").text
+    assert 'href="/sportmonks/admin/matrix/absences/player/5001/detail?season=2024/2025"' in body
 
 
 def test_cell_detail_page_shows_the_underlying_records(client):
-    response = client.get("/admin/matrix/absences/player/5001/detail", params={"season": "2024/2025"})
+    response = client.get("/sportmonks/admin/matrix/absences/player/5001/detail", params={"season": "2024/2025"})
     assert response.status_code == 200
     assert "FC Test" in response.text
 
@@ -299,15 +299,15 @@ def test_cell_detail_page_shows_the_underlying_records(client):
 def test_minutes_cells_are_never_linked(client):
     """Minutes has no cell_detail path — the number in the cell already IS
     the record; there is nothing further to list."""
-    body = client.get("/admin/matrix/minutes/team/100").text
+    body = client.get("/sportmonks/admin/matrix/minutes/team/100").text
     assert "/detail?season=" not in body
 
 
 def test_cell_detail_for_unsupported_measure_is_404(client):
-    assert client.get("/admin/matrix/minutes/player/5001/detail",
+    assert client.get("/sportmonks/admin/matrix/minutes/player/5001/detail",
                       params={"season": "2024/2025"}).status_code == 404
 
 
 def test_cell_detail_unknown_player_is_404(client):
-    assert client.get("/admin/matrix/absences/player/999999/detail",
+    assert client.get("/sportmonks/admin/matrix/absences/player/999999/detail",
                       params={"season": "2024/2025"}).status_code == 404

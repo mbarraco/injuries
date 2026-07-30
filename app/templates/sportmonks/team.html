@@ -1,0 +1,38 @@
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "sportmonks/_macros.html" as sm %}
+{% block title %}{{ team.name }}{% endblock %}{% block heading %}{{ team.name }}{% endblock %}
+{% block subtitle %}{{ team.country or 'Country unknown' }}{% endblock %}
+{% block content %}
+{{ macros.breadcrumbs([{'label': 'Home', 'href': '/'}, {'label': 'Teams', 'href': '/teams'}, {'label': team.name}]) }}
+
+<section><h2>Leagues</h2><ul>
+{% for row in leagues %}<li>{{ sm.entity_link('league', row.id, row.name) }}</li>{% endfor %}
+</ul>{{ macros.empty_state('No league recorded for this team.') if not leagues }}</section>
+
+<section><h2>Squad ({{ squad|length }})</h2>
+<p class="note">Players with recorded minutes in a current season. A club competes in its league and, if it qualified, in a UEFA competition — minutes here are the total across all of them.</p>
+<div class="table-wrap"><table><thead><tr><th>Player</th><th>Position</th><th class="num">Minutes</th></tr></thead><tbody>
+{% for row in squad %}<tr><td>{{ sm.entity_link('player', row.id, row.name) }}</td><td>{{ row.position or '—' }}</td><td class="num">{{ '{:,}'.format(row.minutes_played) if row.minutes_played is not none else '—' }}{% if row.competitions and row.competitions > 1 %} <span class="muted">(across {{ row.competitions }} competitions)</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No squad data recorded for this team.') if not squad }}</section>
+
+<section>{{ macros.count_heading('Injury rate per 1000 minutes', rates.players|length, rates.total) }}
+<p class="note">Current season only, counting minutes played for this club and injuries recorded against it — a player who arrived mid-season shows his time here, not his whole season. {{ rates.below_floor }} player{{ '' if rates.below_floor == 1 else 's' }} with under {{ rates.minutes_floor }} minutes {{ 'is' if rates.below_floor == 1 else 'are' }} excluded from this ranking — too small a denominator for a rate to mean anything. Rates from different seasons are not comparable: see <a href="/sportmonks/coverage">coverage</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Player</th><th>Pos</th><th>Season</th><th class="num">Minutes</th><th class="num">Injuries</th><th class="num">Per 1000 min</th></tr></thead><tbody>
+{% for row in rates.players %}<tr><td>{{ sm.entity_link('player', row.id, row.name) }}</td><td>{{ row.position or '—' }}</td><td>{{ sm.entity_link('season', row.season_id, row.season_name) }}</td><td class="num">{{ '{:,}'.format(row.minutes_played) }}</td><td class="num">{{ row.injuries }}</td><td class="num">{{ row.rate_per_1000 }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.rate_empty_state(rates, 'for this club in the current season') if not rates.players }}</section>
+
+<section>{{ macros.count_heading('Injuries', absences|length, absences_total) }}<div class="table-wrap"><table><thead><tr><th>Player</th><th>League</th><th>Type</th><th>Start</th><th>End</th><th class="num">Days</th></tr></thead><tbody>
+{% for row in absences %}<tr><td>{{ sm.entity_link('player', row.player_id, row.player) }}</td><td>{{ sm.entity_link('league', row.league_id, row.league) }}</td><td>{{ sm.entity_link('type', row.type_id, row.type) }}</td><td>{{ row.start_date }}</td><td>{% if row.is_ongoing %}<span class="pill ongoing">ongoing</span>{% else %}{{ row.end_date or '—' }}{% endif %}</td><td class="num">{{ row.duration_days if row.duration_days is not none else '—' }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No injuries recorded for this team.') if not absences }}</section>
+
+<section>{{ macros.count_heading('Transfers in', transfers_in|length, transfers_in_total) }}
+{{ sm.transfer_totals('Incoming', spend) }}
+<div class="table-wrap"><table><thead><tr><th>Player</th><th>Type</th><th>From</th><th>Date</th><th class="num">Fee</th></tr></thead><tbody>
+{% for row in transfers_in %}<tr><td>{{ sm.entity_link('player', row.player_id, row.player) }}</td><td>{{ sm.transfer_type(row) }}</td><td>{{ sm.entity_link('team', row.from_team_id, row.from_team) }}</td><td>{{ row.date or '—' }}</td><td class="num">{{ sm.transfer_fee(row) }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No transfers in recorded for this team.') if not transfers_in }}</section>
+
+<section>{{ macros.count_heading('Transfers out', transfers_out|length, transfers_out_total) }}
+{{ sm.transfer_totals('Outgoing', income) }}
+<div class="table-wrap"><table><thead><tr><th>Player</th><th>Type</th><th>To</th><th>Date</th><th class="num">Fee</th></tr></thead><tbody>
+{% for row in transfers_out %}<tr><td>{{ sm.entity_link('player', row.player_id, row.player) }}</td><td>{{ sm.transfer_type(row) }}</td><td>{{ sm.entity_link('team', row.to_team_id, row.to_team) }}</td><td>{{ row.date or '—' }}</td><td class="num">{{ sm.transfer_fee(row) }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No transfers out recorded for this team.') if not transfers_out }}</section>
+{% endblock %}

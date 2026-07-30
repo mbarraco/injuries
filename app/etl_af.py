@@ -303,6 +303,7 @@ def collect_players_and_seasons():
                 "nationality": player.get("nationality"),
                 "height_cm": _first_int(player.get("height")),
                 "weight_kg": _first_int(player.get("weight")),
+                "photo_url": player.get("photo"),
             }
             for block in record.get("statistics") or []:
                 team = (block.get("team") or {}).get("id")
@@ -554,7 +555,7 @@ def load(connection, allow_truncated=False):
     counts["player"] = insert_many(
         connection, "af_player",
         ["id", "name", "firstname", "lastname", "birth_date", "birth_country",
-         "nationality", "height_cm", "weight_kg"], list(players.values()))
+         "nationality", "height_cm", "weight_kg", "photo_url"], list(players.values()))
     counts["player_season"] = insert_many(
         connection, "af_player_season",
         ["player_id", "league_id", "season", "team_id", "position",

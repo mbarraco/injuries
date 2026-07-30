@@ -85,6 +85,21 @@ def api_search(q: str = "", _: str = Depends(verify_auth)):
 # --------------------------------------------------------------------------- #
 # Pages.
 # --------------------------------------------------------------------------- #
+@router.get("/search", response_class=HTMLResponse)
+def page_search(request: Request, q: str = "", _: str = Depends(verify_auth)):
+    """Mirrors sportmonks_routes.page_search exactly, but scoped to
+    API-Football's own database and query layer. Searching from an /af/* page
+    used to silently query Sportmonks data through the one shared search box —
+    this and the vendor-scoped retargeting in base.html are what fix that."""
+    with _connection() as connection:
+        results = af_queries.search(connection, q)
+    if request.headers.get("HX-Request") == "true":
+        return templates.TemplateResponse(request, "partials/search_results.html",
+                                          {"results": results, "vendor": "af"})
+    return templates.TemplateResponse(request, "af/search.html", {
+        "active": "af-search", "results": results, "query": q, "vendor": "af"})
+
+
 @router.get("/", response_class=HTMLResponse)
 def page_dashboard(request: Request, _: str = Depends(verify_auth)):
     with _connection() as connection:

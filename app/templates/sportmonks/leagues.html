@@ -1,6 +1,6 @@
-{% extends "base.html" %}{% import "macros.html" as macros %}
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "sportmonks/_macros.html" as sm %}
 {% block title %}Leagues{% endblock %}{% block heading %}Leagues{% endblock %}
 {% block subtitle %}{{ leagues|length }} competitions tracked.{% endblock %}
 {% block content %}<section><div class="table-wrap"><table><thead><tr><th>League</th><th>Country</th><th class="num">Teams</th><th class="num">Absences</th></tr></thead><tbody>
-{% for row in leagues %}<tr><td>{{ macros.entity_link('league', row.id, row.name) }}</td><td>{{ row.country or '—' }}</td><td class="num">{{ row.teams }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
+{% for row in leagues %}<tr><td>{{ sm.entity_link('league', row.id, row.name) }}</td><td>{{ row.country or '—' }}</td><td class="num">{{ row.teams }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
 </tbody></table></div></section>{% endblock %}

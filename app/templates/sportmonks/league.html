@@ -1,18 +1,18 @@
-{% extends "base.html" %}{% import "macros.html" as macros %}
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "sportmonks/_macros.html" as sm %}
 {% block title %}{{ league.name }}{% endblock %}{% block heading %}{{ league.name }}{% endblock %}
 {% block subtitle %}{{ league.country or 'Country unknown' }}{% endblock %}
 {% block content %}
 {{ macros.breadcrumbs([{'label': 'Home', 'href': '/'}, {'label': 'Leagues', 'href': '/leagues'}, {'label': league.name}]) }}
 
 <section><h2>Teams ({{ teams|length }})</h2><div class="table-wrap"><table><thead><tr><th>Team</th><th class="num">Absences</th></tr></thead><tbody>
-{% for row in teams %}<tr><td>{{ macros.entity_link('team', row.id, row.name) }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
+{% for row in teams %}<tr><td>{{ sm.entity_link('team', row.id, row.name) }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
 </tbody></table></div>{{ macros.empty_state('No teams recorded for this league.') if not teams }}</section>
 
 <section><h2>Seasons ({{ seasons|length }})</h2><div class="table-wrap"><table><thead><tr><th>Season</th><th>Current</th></tr></thead><tbody>
-{% for row in seasons %}<tr><td>{{ macros.entity_link('season', row.id, row.name) }}</td><td>{{ 'Yes' if row.is_current else '—' }}</td></tr>{% endfor %}
+{% for row in seasons %}<tr><td>{{ sm.entity_link('season', row.id, row.name) }}</td><td>{{ 'Yes' if row.is_current else '—' }}</td></tr>{% endfor %}
 </tbody></table></div>{{ macros.empty_state('No seasons recorded for this league.') if not seasons }}</section>
 
 <section><h2>Top injury types</h2><div class="table-wrap"><table><thead><tr><th>Type</th><th class="num">Count</th><th class="num">Avg days</th></tr></thead><tbody>
-{% for row in types %}<tr><td>{{ macros.entity_link('type', row.id, row.type) }}</td><td class="num">{{ row.n }}</td><td class="num">{{ row.avg_days if row.avg_days is not none else '—' }}</td></tr>{% endfor %}
+{% for row in types %}<tr><td>{{ sm.entity_link('type', row.id, row.type) }}</td><td class="num">{{ row.n }}</td><td class="num">{{ row.avg_days if row.avg_days is not none else '—' }}</td></tr>{% endfor %}
 </tbody></table></div>{{ macros.empty_state('No injuries recorded for this league.') if not types }}</section>
 {% endblock %}

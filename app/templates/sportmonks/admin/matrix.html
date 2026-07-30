@@ -1,10 +1,10 @@
-{% extends "base.html" %}{% import "macros.html" as macros %}
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "sportmonks/_macros.html" as sm %}
 {% block title %}{{ measure_label }} coverage{% endblock %}
 {% block heading %}{{ measure_label }} — {{ data.row_label }} × season{% endblock %}
 {% block subtitle %}What the dataset holds for this measure, not what happened in football.{% endblock %}
 {% block content %}
 <section>
   {{ macros.breadcrumbs(breadcrumbs) }}
-  {{ macros.matrix(data, drill_kind, cell_detail) }}
+  {{ sm.matrix(data, drill_kind, cell_detail) }}
 </section>
 {% endblock %}

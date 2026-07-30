@@ -1,7 +1,7 @@
-{% import "macros.html" as macros %}
+{% import "sportmonks/_macros.html" as sm %}{% import "af/_macros.html" as af %}
 {% if results %}
 <ul class="search-results">
-{% for row in results %}<li><span class="kind">{{ row.kind }}</span> {{ macros.entity_link(row.kind, row.id, row.name) }}</li>{% endfor %}
+{% for row in results %}<li><span class="kind">{{ row.kind }}</span> {{ af.af_entity_link(row.kind, row.id, row.name) if vendor == 'af' else sm.entity_link(row.kind, row.id, row.name) }}</li>{% endfor %}
 </ul>
 {% else %}
 <p class="empty">No results</p>

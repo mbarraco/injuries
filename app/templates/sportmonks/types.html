@@ -1,6 +1,6 @@
-{% extends "base.html" %}{% import "macros.html" as macros %}
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "sportmonks/_macros.html" as sm %}
 {% block title %}Injury Types{% endblock %}{% block heading %}Injury Types{% endblock %}
 {% block subtitle %}{{ types|length }} injury types recorded.{% endblock %}
 {% block content %}<section><div class="table-wrap"><table><thead><tr><th>Type</th><th class="num">Injuries</th><th class="num">Avg days</th></tr></thead><tbody>
-{% for row in types %}<tr><td>{{ macros.entity_link('type', row.id, row.name) }}</td><td class="num">{{ row.injuries }}</td><td class="num">{{ row.avg_duration if row.avg_duration is not none else '—' }}</td></tr>{% endfor %}
+{% for row in types %}<tr><td>{{ sm.entity_link('type', row.id, row.name) }}</td><td class="num">{{ row.injuries }}</td><td class="num">{{ row.avg_duration if row.avg_duration is not none else '—' }}</td></tr>{% endfor %}
 </tbody></table></div></section>{% endblock %}

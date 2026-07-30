@@ -6,76 +6,116 @@
   <title>{% block title %}Injury Data{% endblock %}</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+{# `vendor` drives two independent things from one signal: the CSS accent
+   override (data-vendor on body) and which vendor's search endpoint the
+   sidebar box targets. Derived from `active` rather than passed separately by
+   every route, so there is exactly one place this mapping can drift. #}
+{% set vendor = 'af' if active and active.startswith('af-')
+               else ('sportmonks' if active and active.startswith('sportmonks-') else none) %}
+<body{% if vendor %} data-vendor="{{ vendor }}"{% endif %}>
+  <a href="#main-content" class="skip-link">Skip to content</a>
   <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-hidden="true">
   <label for="nav-toggle" class="nav-toggle-label" aria-label="Toggle navigation">☰</label>
 
   <nav class="sidebar">
     <div class="brand">
       <span class="brand-mark">◆</span>
-      <div><strong>Injury Data</strong><small>Sportmonks · UEFA</small></div>
+      <div><strong>Injury Data</strong><small>Two vendors · UEFA</small></div>
     </div>
 
-    {# A plain <form> so pressing Enter still works with JavaScript disabled —
-       it submits to /search, which renders a full page (see main.py:page_search).
-       htmx progressively enhances the same input with a live dropdown. #}
-    <form class="global-search" action="/search" method="get" role="search">
+    {# One search box, retargeted to whichever vendor's data is currently on
+       screen — searching from an /af/* page used to silently query Sportmonks
+       data with no indication it was the wrong dataset. On the neutral landing
+       page (`vendor` is none) there is no dataset to scope to, so the box is
+       omitted rather than defaulting to either side. #}
+    {% if vendor %}
+    {% set search_path = '/af/search' if vendor == 'af' else '/sportmonks/search' %}
+    <form class="global-search" action="{{ search_path }}" method="get" role="search">
       <input type="search" name="q" autocomplete="off"
              placeholder="Search players, teams, leagues…"
-             hx-get="/search" hx-trigger="keyup changed delay:200ms, search"
+             hx-get="{{ search_path }}" hx-trigger="keyup changed delay:200ms, search"
              hx-target="#search-results">
       <div id="search-results" class="search-dropdown"></div>
     </form>
+    {% endif %}
 
     <div class="nav-group">
-      <a href="/" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
-      <a href="/absences" class="{{ 'active' if active == 'absences' else '' }}">Absences</a>
-      <a href="/analytics" class="{{ 'active' if active == 'analytics' else '' }}">Analytics</a>
+      <a href="/" class="{{ 'active' if active == 'home' else '' }}">← Home</a>
     </div>
 
-    {# Players/Teams/Leagues/Types have had detail pages since Slice B, but no
-       primary nav entry — reachable only via search or by drilling in from
-       another page. #}
-    <div class="nav-group">
-      <a href="/players" class="{{ 'active' if active == 'players' else '' }}">Players</a>
-      <a href="/teams" class="{{ 'active' if active == 'teams' else '' }}">Teams</a>
-      <a href="/leagues" class="{{ 'active' if active == 'leagues' else '' }}">Leagues</a>
-      <a href="/seasons" class="{{ 'active' if active == 'seasons' else '' }}">Seasons</a>
-      <a href="/types" class="{{ 'active' if active == 'types' else '' }}">Injury types</a>
-    </div>
+    <div class="nav-vendor" data-vendor="sportmonks">
+      <div class="nav-group-label">Sportmonks</div>
+      <div class="nav-group">
+        <a href="/sportmonks/" class="{{ 'active' if active == 'sportmonks-dashboard' else '' }}">Dashboard</a>
+        <a href="/sportmonks/absences" class="{{ 'active' if active == 'sportmonks-absences' else '' }}">Absences</a>
+        <a href="/sportmonks/analytics" class="{{ 'active' if active == 'sportmonks-analytics' else '' }}">Analytics</a>
+      </div>
 
-    <div class="nav-group">
-      <a href="/coverage" class="{{ 'active' if active == 'coverage' else '' }}">Coverage &amp; Quality</a>
-      <a href="/admin" class="{{ 'active' if active == 'admin' else '' }}">Admin</a>
+      {# Players/Teams/Leagues/Types have had detail pages since Slice B, but no
+         primary nav entry — reachable only via search or by drilling in from
+         another page. #}
+      <div class="nav-group">
+        <a href="/sportmonks/players" class="{{ 'active' if active == 'sportmonks-players' else '' }}">Players</a>
+        <a href="/sportmonks/teams" class="{{ 'active' if active == 'sportmonks-teams' else '' }}">Teams</a>
+        <a href="/sportmonks/leagues" class="{{ 'active' if active == 'sportmonks-leagues' else '' }}">Leagues</a>
+        <a href="/sportmonks/transfers" class="{{ 'active' if active == 'sportmonks-transfers' else '' }}">Transfers</a>
+        <a href="/sportmonks/seasons" class="{{ 'active' if active == 'sportmonks-seasons' else '' }}">Seasons</a>
+        <a href="/sportmonks/types" class="{{ 'active' if active == 'sportmonks-types' else '' }}">Injury types</a>
+      </div>
+
+      <div class="nav-group">
+        <a href="/sportmonks/coverage" class="{{ 'active' if active == 'sportmonks-coverage' else '' }}">Coverage &amp; Quality</a>
+      </div>
+      {# Sportmonks-only tooling (coverage matrices), by explicit design decision
+         — not mirrored on the API-Football side. Kept visible, deliberately not
+         given peer visual weight with the groups above. #}
+      <div class="nav-group nav-group-admin">
+        <a href="/sportmonks/admin" class="{{ 'active' if active == 'sportmonks-admin' else '' }}">Admin</a>
+      </div>
     </div>
 
     {# Separate database, separate vendor -- see app/schema_af.sql. Same
        layout and macros, different domain: absences here are (player, fixture)
        appearances with no spell id, not the Sportmonks spells above. #}
-    <div class="nav-group">
+    <div class="nav-vendor" data-vendor="af">
       <div class="nav-group-label">API-Football</div>
-      <a href="/af/" class="{{ 'active' if active == 'af-dashboard' else '' }}">Dashboard</a>
-      <a href="/af/absences" class="{{ 'active' if active == 'af-absences' else '' }}">Absences</a>
-      <a href="/af/analytics" class="{{ 'active' if active == 'af-analytics' else '' }}">Analytics</a>
-      <a href="/af/players" class="{{ 'active' if active == 'af-players' else '' }}">Players</a>
-      <a href="/af/teams" class="{{ 'active' if active == 'af-teams' else '' }}">Teams</a>
-      <a href="/af/transfers" class="{{ 'active' if active == 'af-transfers' else '' }}">Transfers</a>
-      <a href="/af/leagues" class="{{ 'active' if active == 'af-leagues' else '' }}">Leagues</a>
+      <div class="nav-group">
+        <a href="/af/" class="{{ 'active' if active == 'af-dashboard' else '' }}">Dashboard</a>
+        <a href="/af/absences" class="{{ 'active' if active == 'af-absences' else '' }}">Absences</a>
+        <a href="/af/analytics" class="{{ 'active' if active == 'af-analytics' else '' }}">Analytics</a>
+      </div>
+      <div class="nav-group">
+        <a href="/af/players" class="{{ 'active' if active == 'af-players' else '' }}">Players</a>
+        <a href="/af/teams" class="{{ 'active' if active == 'af-teams' else '' }}">Teams</a>
+        <a href="/af/leagues" class="{{ 'active' if active == 'af-leagues' else '' }}">Leagues</a>
+        <a href="/af/transfers" class="{{ 'active' if active == 'af-transfers' else '' }}">Transfers</a>
+        <a href="/af/reasons" class="{{ 'active' if active == 'af-reasons' else '' }}">Reasons</a>
+      </div>
+      <div class="nav-group">
+        <a href="/af/coverage" class="{{ 'active' if active == 'af-coverage' else '' }}">Coverage &amp; Quality</a>
+      </div>
     </div>
 
-    <div class="sidebar-foot"><a href="/docs">API docs →</a></div>
+    <div class="sidebar-foot">
+      <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark theme">◐</button>
+      <a href="/docs">API docs →</a>
+    </div>
   </nav>
 
-  <main>
+  <main id="main-content">
     <header class="page-head">
-      <h1>{% block heading %}{% endblock %}</h1>
-      <p class="subtitle">{% block subtitle %}{% endblock %}</p>
+      {% block header_media %}{% endblock %}
+      <div class="page-head-text">
+        <h1>{% block heading %}{% endblock %}</h1>
+        <p class="subtitle">{% block subtitle %}{% endblock %}</p>
+      </div>
     </header>
     {% block content %}{% endblock %}
   </main>
 
   <script src="/static/chart.min.js"></script>
   <script src="/static/htmx.min.js"></script>
+  <script src="/static/theme.js"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,0 +1,90 @@
+{# Sportmonks-local macros: same job as app/templates/af/_macros.html's
+   af_entity_link/transfer macros, but pointed at /sportmonks/* routes.
+   Kept apart from the shared macros.html rather than parameterising it,
+   mirroring the split af/_macros.html already established — a prefix
+   argument threaded through every call site would be easy to forget. #}
+
+{# entity_link — the single place an entity reference is rendered.
+   Centralised because 244 teams and 21 players never resolve to names (cup
+   qualifying-round clubs outside the plan), and every call site would
+   otherwise invent its own fallback. #}
+{% macro entity_link(kind, id, label) %}
+  {%- if id and label -%}
+    <a href="/sportmonks/{{ kind }}/{{ id }}" class="entity-link">{{ label }}</a>
+  {%- elif label -%}
+    <span class="entity-unresolved" title="Not in our data">{{ label }}</span>
+  {%- else -%}
+    <span class="muted">—</span>
+  {%- endif -%}
+{% endmacro %}
+
+{# A transfer fee, distinguishing three genuinely different states.
+   Only ~18% of transfers carry an amount, but that is not 82% missing data:
+   a free transfer HAS no fee, so showing it as blank would misreport a known
+   fact as an absent one. Free is stated, undisclosed is marked, and a real fee
+   is formatted. #}
+{% macro transfer_fee(row) %}
+  {%- if row.amount is not none -%}
+    <span class="fee">€{{ '{:,}'.format(row.amount) }}</span>
+  {%- elif row.type_id == 220 -%}
+    <span class="muted" title="A free transfer has no fee">free</span>
+  {%- else -%}
+    <span class="muted" title="No fee disclosed for this move">undisclosed</span>
+  {%- endif -%}
+{% endmacro %}
+
+{# Transfer type as a pill. Type 9688 appears on thousands of rows but is
+   absent from the vendor's own /types taxonomy, so it is labelled plainly
+   rather than guessed at. #}
+{% macro transfer_type(row) %}
+  {%- if row.transfer_type -%}
+    <span class="pill type-{{ row.type_id }}">{{ row.transfer_type }}</span>
+  {%- else -%}
+    <span class="pill muted" title="Type {{ row.type_id }} is not in the vendor's type list">unspecified</span>
+  {%- endif -%}
+{% endmacro %}
+
+{# Fee totals for a team, always carrying the count they rest on.
+   Most moves disclose no fee, so "€40,000,000 incoming" alone would read as a
+   complete transfer budget when it may cover a handful of the moves. #}
+{% macro transfer_totals(label, totals) %}
+  {%- if totals and totals.moves -%}
+    <p class="note">{{ label }}: {{ '{:,}'.format(totals.moves) }} move{{ '' if totals.moves == 1 else 's' }}
+    {%- if totals.fees %}, €{{ '{:,}'.format(totals.fees) }} in disclosed fees across {{ totals.fees_known }} of them — the rest report no fee.
+    {%- else %}, none with a disclosed fee.{% endif %}</p>
+  {%- endif -%}
+{% endmacro %}
+
+{# One coverage grid, any measure or scope. Heat intensity is scaled to the
+   largest value in THIS grid, so rows stay comparable with each other.
+   A season absent from a row's cells renders blank; a season present with
+   value 0 renders "0" — see app/matrix.py, this distinction is the entire
+   point of a coverage view. `drill_kind` is None for a measure/scope with no
+   further dimension to drill into (fixtures has no club scope at all; player
+   scope is always the bottom). #}
+{% macro matrix(data, drill_kind=None, cell_detail=False) %}
+<div class="table-wrap"><table class="matrix">
+  <thead><tr><th>{{ data.row_label }}</th>
+    {% for season in data.seasons %}<th class="num">{{ season }}</th>{% endfor %}
+    {% if data.unattributed %}<th class="num" title="Records whose season could not be resolved">Unresolved</th>{% endif %}
+    <th class="num">Total</th></tr></thead>
+  <tbody>
+  {% for row in data.rows %}<tr>
+    <td>{% if drill_kind %}<a href="/sportmonks/admin/matrix/{{ data.measure }}/{{ drill_kind }}/{{ row.id }}">{{ row.label }}</a>{% else %}{{ row.label }}{% endif %}</td>
+    {% for season in data.seasons %}
+      {%- set value = row.cells.get(season) -%}
+      <td class="num heat" style="--heat: {{ (value / data.max) if value and data.max else 0 }}">
+        {%- if value and cell_detail -%}
+          <a href="/sportmonks/admin/matrix/{{ data.measure }}/player/{{ row.id }}/detail?season={{ season | urlencode }}">{{ value }}</a>
+        {%- else -%}
+          {{ value if value is not none else '' }}
+        {%- endif -%}
+      </td>
+    {% endfor %}
+    {% if data.unattributed %}<td class="num">{{ row.unattributed or '' }}</td>{% endif %}
+    <td class="num total">{{ '{:,}'.format(row.total) }}</td>
+  </tr>{% endfor %}
+  </tbody>
+</table></div>
+{% if data.unmatched %}<p class="note">{{ '{:,}'.format(data.unmatched) }} {{ data.measure }} could not be matched to any season at all (no roster or window covers them) and are not counted anywhere above.</p>{% endif %}
+{% endmacro %}

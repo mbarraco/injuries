@@ -60,7 +60,7 @@ def test_team_rate_uses_minutes_and_injuries_at_that_team(connection):
 
 
 def test_season_page_shows_rates_with_minutes_and_the_floor(client):
-    response = client.get("/season/77")
+    response = client.get("/sportmonks/season/77")
 
     assert "per 1000 minutes" in response.text
     assert "944" in response.text  # the minutes basis, beside the rate
@@ -68,7 +68,7 @@ def test_season_page_shows_rates_with_minutes_and_the_floor(client):
 
 
 def test_team_page_shows_rates_with_the_floor(client):
-    response = client.get("/team/100")
+    response = client.get("/sportmonks/team/100")
 
     assert "per 1000 minutes" in response.text
     assert "450" in response.text
@@ -88,13 +88,13 @@ def test_empty_rates_explain_a_young_season_not_missing_data(rates_client):
     because 2026/2027 has barely started, so this is the state most team pages
     are in — it must not read as a broken feature.
     """
-    body = rates_client.get("/team/100").text
+    body = rates_client.get("/sportmonks/team/100").text
     assert "Early in a season that is expected" in body
     assert "recorded minutes" in body
 
 
 def test_empty_rates_say_so_plainly_when_there_are_no_minutes_at_all(client):
     """The other branch: nothing recorded, so there is nothing to wait for."""
-    body = client.get("/team/200").text
+    body = client.get("/sportmonks/team/200").text
     assert "No minutes are recorded" in body
     assert "Early in a season" not in body

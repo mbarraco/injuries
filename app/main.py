@@ -1,20 +1,28 @@
-"""Thin FastAPI routes over the testable injury query layer."""
+"""Thin FastAPI routes over the testable injury query layer.
+
+Page routes live in sportmonks_routes.py and af_routes.py, one router per
+vendor, mirroring each other. This module keeps only app setup and the
+/api/* JSON contract, which is frozen and never moves -- AGENTS.md documents
+that external callers depend on /api/injuries specifically, and this app
+extends that same caution to the whole /api/* family.
+"""
 import os
 
-from fastapi import FastAPI, Request, Depends, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Depends, Request
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app import af_routes, db, matrix, queries
+from app import af_queries, af_routes, db, queries, sportmonks_routes
 from app.auth import verify_auth
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI(title="Injury Data POC")
 app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(HERE, "templates"))
-# Additive: API-Football lives at /af/*, its own database, its own query
-# layer. Shares auth, static assets and the base layout/macros only.
+# Additive: each vendor lives under its own prefix, its own database, its own
+# query layer. Shares auth, static assets and the base layout/macros only.
+app.include_router(sportmonks_routes.router)
 app.include_router(af_routes.router)
 
 
@@ -25,6 +33,20 @@ def _connection():
 def _category_or_none(value):
     """"all" (the UI's plain-form choice for "no filter") becomes None."""
     return None if value in (None, "", "all") else value
+
+
+@app.get("/", response_class=HTMLResponse)
+def page_home(request: Request, _: str = Depends(verify_auth)):
+    """The neutral landing page: two peer cards, one per vendor, neither
+    styled as primary. Deliberately sets no `active` value that starts with
+    'sportmonks-' or 'af-', so base.html's vendor derivation leaves data-vendor
+    unset here -- each card scopes its own accent locally instead."""
+    with db.connect() as connection:
+        sportmonks_overview = queries.overview(connection)
+    with db.connect_af() as connection:
+        af_overview = af_queries.overview(connection)
+    return templates.TemplateResponse(request, "home.html", {
+        "active": "home", "sportmonks": sportmonks_overview, "af": af_overview})
 
 
 @app.get("/api/overview")
@@ -77,208 +99,3 @@ def api_player(player_id: int, _: str = Depends(verify_auth)):
 def api_search(q: str = "", _: str = Depends(verify_auth)):
     with _connection() as connection:
         return {"results": queries.search(connection, q)}
-
-
-@app.get("/search", response_class=HTMLResponse)
-def page_search(request: Request, q: str = "", _: str = Depends(verify_auth)):
-    """Backs the header search box AND works as a real page.
-
-    htmx marks its own requests with the HX-Request header, so that header is
-    what distinguishes the two callers: htmx gets the bare results fragment it
-    already swaps in, while a plain form submit (no JavaScript) or a shared
-    /search?q= link gets a full page with the same results. Without this split,
-    the search box only worked with JavaScript enabled.
-    """
-    with _connection() as connection:
-        results = queries.search(connection, q)
-    if request.headers.get("HX-Request") == "true":
-        return templates.TemplateResponse(request, "partials/search_results.html", {"results": results})
-    return templates.TemplateResponse(request, "search.html", {"active": "search", "results": results, "query": q})
-
-
-@app.get("/", response_class=HTMLResponse)
-def page_dashboard(request: Request, _: str = Depends(verify_auth)):
-    """The landing page: a summary of every view, each panel linking into it.
-    Coverage kept this slot as a POC; it now lives at /coverage."""
-    with _connection() as connection:
-        return templates.TemplateResponse(request, "dashboard.html",
-                                          {"active": "dashboard", **queries.dashboard(connection)})
-
-
-@app.get("/coverage", response_class=HTMLResponse)
-def page_coverage(request: Request, _: str = Depends(verify_auth)):
-    with _connection() as connection:
-        return templates.TemplateResponse(request, "coverage.html", {"active": "coverage", "overview": queries.overview(connection), "quality": queries.quality_metrics(connection), "coverage": queries.coverage_totals(connection), "ramp": queries.coverage_ramp(connection)})
-
-
-@app.get("/analytics", response_class=HTMLResponse)
-def page_analytics(request: Request, _: str = Depends(verify_auth)):
-    with _connection() as connection:
-        return templates.TemplateResponse(request, "analytics.html", {"active": "analytics", "by_position": queries.by_position(connection), "by_age_band": queries.by_age_band(connection), "by_type": queries.by_type(connection), "by_nationality": queries.by_nationality(connection), "by_league": queries.by_league(connection), "by_month": queries.by_month(connection)})
-
-
-@app.get("/injuries")
-def page_injuries_redirect():
-    """Preserved so existing links and bookmarks keep working. 302, not 301:
-    a permanent redirect is cached hard by browsers and hard to walk back."""
-    return RedirectResponse("/absences?category=injury", status_code=302)
-
-
-@app.get("/absences", response_class=HTMLResponse)
-def page_absences(request: Request, category: str = "injury", country: str | None = None, position: str | None = None,
-                  type_name: str | None = None, ongoing_only: bool = False, sort: str = "start_date",
-                  direction: str = "desc", page: int = 1, _: str = Depends(verify_auth)):
-    with _connection() as connection:
-        result = queries.injury_list(connection, category=_category_or_none(category), country=country,
-                                     position=position, type_name=type_name, ongoing_only=ongoing_only,
-                                     sort=sort, direction=direction, page=page)
-        options = queries.filter_options(connection)
-    return templates.TemplateResponse(request, "absences.html", {
-        "active": "absences", "result": result, "options": options,
-        "filters": {"category": category, "country": country, "position": position, "type_name": type_name,
-                    "ongoing_only": ongoing_only, "sort": sort, "direction": direction}})
-
-
-@app.get("/players", response_class=HTMLResponse)
-def page_players(request: Request, _: str = Depends(verify_auth)):
-    with _connection() as connection:
-        return templates.TemplateResponse(request, "players.html", {"active": "players", **queries.players_index(connection)})
-
-
-@app.get("/player/{player_id}", response_class=HTMLResponse)
-def page_player(request: Request, player_id: int, _: str = Depends(verify_auth)):
-    with _connection() as connection:
-        return templates.TemplateResponse(request, "player.html", {"active": "injuries", **queries.player_timeline(connection, player_id)})
-
-
-@app.get("/leagues", response_class=HTMLResponse)
-def page_leagues(request: Request, _: str = Depends(verify_auth)):
-    with _connection() as connection:
-        return templates.TemplateResponse(request, "leagues.html", {"active": "leagues", "leagues": queries.leagues_index(connection)})
-
-
-@app.get("/league/{league_id}", response_class=HTMLResponse)
-def page_league(request: Request, league_id: int, _: str = Depends(verify_auth)):
-    with _connection() as connection:
-        detail = queries.league_detail(connection, league_id)
-    if detail is None:
-        raise HTTPException(status_code=404, detail="League not found")
-    return templates.TemplateResponse(request, "league.html", {"active": "leagues", **detail})
-
-
-@app.get("/teams", response_class=HTMLResponse)
-def page_teams(request: Request, _: str = Depends(verify_auth)):
-    with _connection() as connection:
-        return templates.TemplateResponse(request, "teams.html", {"active": "teams", "teams": queries.teams_index(connection)})
-
-
-@app.get("/team/{team_id}", response_class=HTMLResponse)
-def page_team(request: Request, team_id: int, _: str = Depends(verify_auth)):
-    with _connection() as connection:
-        detail = queries.team_detail(connection, team_id)
-    if detail is None:
-        raise HTTPException(status_code=404, detail="Team not found")
-    return templates.TemplateResponse(request, "team.html", {"active": "teams", **detail})
-
-
-@app.get("/seasons", response_class=HTMLResponse)
-def page_seasons(request: Request, _: str = Depends(verify_auth)):
-    with _connection() as connection:
-        return templates.TemplateResponse(request, "seasons.html", {"active": "seasons", "seasons": queries.seasons_index(connection)})
-
-
-@app.get("/season/{season_id}", response_class=HTMLResponse)
-def page_season(request: Request, season_id: int, _: str = Depends(verify_auth)):
-    with _connection() as connection:
-        detail = queries.season_detail(connection, season_id)
-    if detail is None:
-        raise HTTPException(status_code=404, detail="Season not found")
-    return templates.TemplateResponse(request, "season.html", {"active": "seasons", **detail})
-
-
-@app.get("/types", response_class=HTMLResponse)
-def page_types(request: Request, _: str = Depends(verify_auth)):
-    with _connection() as connection:
-        return templates.TemplateResponse(request, "types.html", {"active": "types", "types": queries.types_index(connection)})
-
-
-@app.get("/type/{type_id}", response_class=HTMLResponse)
-def page_type(request: Request, type_id: int, _: str = Depends(verify_auth)):
-    with _connection() as connection:
-        detail = queries.type_detail(connection, type_id)
-    if detail is None:
-        raise HTTPException(status_code=404, detail="Injury type not found")
-    return templates.TemplateResponse(request, "type.html", {"active": "types", **detail})
-
-
-@app.get("/admin", response_class=HTMLResponse)
-def page_admin(request: Request, _: str = Depends(verify_auth)):
-    return templates.TemplateResponse(request, "admin/index.html",
-                                      {"active": "admin", "measures": matrix.MEASURES})
-
-
-@app.get("/admin/matrix/{measure}", response_class=HTMLResponse)
-def page_matrix(request: Request, measure: str, _: str = Depends(verify_auth)):
-    if measure not in matrix.MEASURES:
-        raise HTTPException(status_code=404, detail="Unknown measure")
-    with _connection() as connection:
-        data = matrix.build(connection, measure, scope="league")
-    return templates.TemplateResponse(request, "admin/matrix.html", {
-        "active": "admin", "data": data, "measure_label": matrix.MEASURES[measure].label,
-        "drill_kind": "league" if matrix.MEASURES[measure].supports("club") else None,
-        "breadcrumbs": [{"href": "/admin", "label": "Admin"}, {"label": matrix.MEASURES[measure].label}],
-    })
-
-
-@app.get("/admin/matrix/{measure}/league/{league_id}", response_class=HTMLResponse)
-def page_matrix_league(request: Request, measure: str, league_id: int, _: str = Depends(verify_auth)):
-    if measure not in matrix.MEASURES or not matrix.MEASURES[measure].supports("club"):
-        raise HTTPException(status_code=404, detail="Unknown measure or scope")
-    with _connection() as connection:
-        league = connection.execute("SELECT id, name FROM league WHERE id = ?", (league_id,)).fetchone()
-        if league is None:
-            raise HTTPException(status_code=404, detail="League not found")
-        data = matrix.build(connection, measure, scope="club", scope_id=league_id)
-    return templates.TemplateResponse(request, "admin/matrix.html", {
-        "active": "admin", "data": data, "measure_label": matrix.MEASURES[measure].label, "drill_kind": "team",
-        "breadcrumbs": [{"href": "/admin", "label": "Admin"},
-                        {"href": f"/admin/matrix/{measure}", "label": matrix.MEASURES[measure].label},
-                        {"label": league["name"]}],
-    })
-
-
-@app.get("/admin/matrix/{measure}/team/{team_id}", response_class=HTMLResponse)
-def page_matrix_team(request: Request, measure: str, team_id: int, _: str = Depends(verify_auth)):
-    if measure not in matrix.MEASURES or not matrix.MEASURES[measure].supports("player"):
-        raise HTTPException(status_code=404, detail="Unknown measure or scope")
-    with _connection() as connection:
-        team = connection.execute("SELECT id, name FROM team WHERE id = ?", (team_id,)).fetchone()
-        if team is None:
-            raise HTTPException(status_code=404, detail="Team not found")
-        data = matrix.build(connection, measure, scope="player", scope_id=team_id)
-    return templates.TemplateResponse(request, "admin/matrix.html", {
-        "active": "admin", "data": data, "measure_label": matrix.MEASURES[measure].label, "drill_kind": None,
-        "cell_detail": matrix.supports_cell_detail(measure),
-        "breadcrumbs": [{"href": "/admin", "label": "Admin"},
-                        {"href": f"/admin/matrix/{measure}", "label": matrix.MEASURES[measure].label},
-                        {"label": team["name"]}],
-    })
-
-
-@app.get("/admin/matrix/{measure}/player/{player_id}/detail", response_class=HTMLResponse)
-def page_matrix_cell_detail(request: Request, measure: str, player_id: int, season: str,
-                            _: str = Depends(verify_auth)):
-    if not matrix.supports_cell_detail(measure):
-        raise HTTPException(status_code=404, detail="No cell-level detail for this measure")
-    with _connection() as connection:
-        player = connection.execute("SELECT id, name FROM player WHERE id = ?", (player_id,)).fetchone()
-        if player is None:
-            raise HTTPException(status_code=404, detail="Player not found")
-        records = matrix.cell_detail(connection, measure, player_id, season)
-    return templates.TemplateResponse(request, "admin/cell_detail.html", {
-        "active": "admin", "measure": measure, "measure_label": matrix.MEASURES[measure].label,
-        "player": dict(player), "season": season, "records": records,
-        "breadcrumbs": [{"href": "/admin", "label": "Admin"},
-                        {"href": f"/admin/matrix/{measure}", "label": matrix.MEASURES[measure].label},
-                        {"label": player["name"]}, {"label": season}],
-    })

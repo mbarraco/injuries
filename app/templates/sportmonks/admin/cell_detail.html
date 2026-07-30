@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% import "macros.html" as macros %}
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "sportmonks/_macros.html" as sm %}
 {% block title %}{{ player.name }} — {{ season }}{% endblock %}
 {% block heading %}{{ player.name }} — {{ season }}{% endblock %}
 {% block subtitle %}{{ measure_label }} behind this cell.{% endblock %}
@@ -12,7 +12,7 @@
     <tbody>
     {% for r in records %}<tr>
       <td>{{ r.category }}</td>
-      <td>{{ macros.entity_link('team', r.team_id, r.team_name) }}</td>
+      <td>{{ sm.entity_link('team', r.team_id, r.team_name) }}</td>
       <td>{{ r.type_name or '—' }}</td>
       <td>{{ r.start_date or '—' }}</td>
       <td>{{ r.end_date or 'ongoing' }}</td>
@@ -24,10 +24,10 @@
     <tbody>
     {% for r in records %}<tr>
       <td>{{ r.date or '—' }}</td>
-      <td>{{ macros.entity_link('team', r.from_team_id, r.from_team_name) }}</td>
-      <td>{{ macros.entity_link('team', r.to_team_id, r.to_team_name) }}</td>
-      <td>{{ macros.transfer_type(r) }}</td>
-      <td class="num">{{ macros.transfer_fee(r) }}</td>
+      <td>{{ sm.entity_link('team', r.from_team_id, r.from_team_name) }}</td>
+      <td>{{ sm.entity_link('team', r.to_team_id, r.to_team_name) }}</td>
+      <td>{{ sm.transfer_type(r) }}</td>
+      <td class="num">{{ sm.transfer_fee(r) }}</td>
     </tr>{% endfor %}
     </tbody>
     {% endif %}

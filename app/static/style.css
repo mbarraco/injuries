@@ -46,6 +46,21 @@
 }
 
 /* =========================================================================
+   Per-vendor accent — one variable, one override, so every component that
+   already reads var(--accent) (links, active nav, stats, filter buttons,
+   focus rings) repaints automatically with no per-vendor component
+   duplication. Sportmonks keeps the default blue; must come AFTER both theme
+   blocks above so it wins regardless of light/dark. The two axes (vendor
+   accent, light/dark theme) are independent of each other.
+   ========================================================================= */
+body[data-vendor="af"] { --accent: #8b5cf6; }
+
+/* Card-scoped variant for the neutral landing page, where neither vendor
+   is "current" — each card shows its own identity locally instead of the
+   body-level attribute picking one. */
+.vendor-card[data-vendor-scope="af"] { --accent: #8b5cf6; }
+
+/* =========================================================================
    Reset & layout
    ========================================================================= */
 * { box-sizing: border-box; }
@@ -63,7 +78,12 @@ main {
   max-width: 1400px;
   padding: 34px 40px 60px;
 }
-.page-head { margin-bottom: 26px; }
+.page-head { margin-bottom: 26px; display: flex; align-items: center; gap: 16px; }
+.page-head-text { min-width: 0; }
+.player-photo {
+  width: 56px; height: 56px; border-radius: 50%; object-fit: cover;
+  border: 1px solid var(--line); background: var(--surface-alt); flex-shrink: 0;
+}
 .page-head h1 { margin: 0 0 4px; font-size: 26px; }
 .subtitle { margin: 0; color: var(--soft); }
 section { margin-bottom: 34px; }
@@ -74,6 +94,18 @@ section > h2 {
 
 /* Mobile nav toggle: a hidden checkbox + label, pure CSS, no JS. */
 .nav-toggle, .nav-toggle-label { display: none; }
+
+/* Skip-to-content: visually hidden until it receives keyboard focus. Without
+   this, a keyboard user has to tab through the entire sidebar before ever
+   reaching page content. */
+.skip-link {
+  position: absolute; left: -999px; top: auto;
+  padding: 8px 14px; background: var(--surface); color: var(--ink);
+  border-radius: var(--radius-sm); z-index: 40;
+}
+.skip-link:focus {
+  left: 14px; top: 14px;
+}
 
 /* =========================================================================
    Sidebar
@@ -95,6 +127,16 @@ section > h2 {
 }
 .nav-group:last-of-type { border-bottom: none; }
 .nav-group-label { color: #7d879a; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 4px 8px 2px; }
+/* A small colored dot per vendor group, so the sidebar itself shows both
+   identities side by side regardless of which one is currently active. */
+.nav-vendor[data-vendor] .nav-group-label::before { content: '●'; margin-right: 5px; font-size: 8px; }
+.nav-vendor[data-vendor="sportmonks"] .nav-group-label::before { color: #2f6df6; }
+.nav-vendor[data-vendor="af"] .nav-group-label::before { color: #8b5cf6; }
+/* Sportmonks-only tooling (coverage matrices) — present, not hidden, but
+   deliberately not given the same visual weight as the groups above, since
+   there is no API-Football peer for it. */
+.nav-group-admin { margin-top: 2px; }
+.nav-group-admin a { font-size: 12px; color: var(--soft); }
 
 .sidebar a {
   color: var(--side-ink); text-decoration: none;
@@ -102,8 +144,14 @@ section > h2 {
 }
 .sidebar a:hover { background: var(--side-hover); color: #fff; }
 .sidebar .active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
-.sidebar-foot { margin-top: auto; padding-top: 16px; }
+.sidebar-foot { margin-top: auto; padding-top: 16px; display: flex; align-items: center; gap: 10px; }
 .sidebar-foot a { font-size: 12px; color: #7d879a; }
+.theme-toggle {
+  background: var(--side-hover); color: #fff; border: 1px solid var(--side-line);
+  border-radius: var(--radius-sm); width: 28px; height: 28px; font-size: 14px;
+  cursor: pointer; line-height: 1;
+}
+.theme-toggle:hover { background: var(--side-line); }
 
 /* =========================================================================
    Global search

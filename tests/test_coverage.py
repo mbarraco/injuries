@@ -23,7 +23,7 @@ def test_coverage_totals_replace_the_three_year_pivot(connection):
 def test_coverage_page_drops_the_settled_claim(client):
     """This was settled on 2026-07-27: the depth limit is the plan, measured,
     not a suspicion about the account tier."""
-    text = client.get("/coverage").text
+    text = client.get("/sportmonks/coverage").text
 
     assert "History depth is provisional" not in text
     assert "trial-account" not in text
@@ -31,14 +31,14 @@ def test_coverage_page_drops_the_settled_claim(client):
 
 
 def test_coverage_page_states_the_measured_limit(client):
-    text = client.get("/coverage").text
+    text = client.get("/sportmonks/coverage").text
 
     assert "3 seasons" in text
     assert "2000" in text  # the cups' reach
 
 
 def test_coverage_page_charts_the_ramp_with_the_mix_caveat(client):
-    text = client.get("/coverage").text
+    text = client.get("/sportmonks/coverage").text
 
     assert "coverageRamp" in text  # the chart canvas
     assert "2024" in text          # the year the series composition changes

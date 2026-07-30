@@ -1,5 +1,5 @@
 def test_absences_defaults_to_injuries_only(client):
-    assert client.get("/absences").status_code == 200
+    assert client.get("/sportmonks/absences").status_code == 200
 
 
 def test_absences_category_filter_returns_suspensions(client):
@@ -8,10 +8,11 @@ def test_absences_category_filter_returns_suspensions(client):
     assert all(row["category"] == "suspended" for row in response.json()["items"])
 
 
-def test_injuries_url_redirects_preserving_meaning(client):
-    response = client.get("/injuries", follow_redirects=False)
-    assert response.status_code == 302
-    assert "category=injury" in response.headers["location"]
+def test_injuries_url_no_longer_exists(client):
+    """The /injuries -> /absences redirect is removed as part of the clean
+    cutover to /sportmonks/*: no legacy page redirects are kept. /api/injuries
+    is unaffected -- see test_api_injuries_still_defaults_to_injury_category."""
+    assert client.get("/injuries").status_code == 404
 
 
 def test_api_injuries_still_defaults_to_injury_category(client):
@@ -32,7 +33,7 @@ def test_absences_filter_and_pager_are_htmx_enhanced(client):
     #absence-results, so htmx can swap just that fragment instead of a full
     reload — while the plain method="get"/href attributes keep the no-JS path
     working unchanged."""
-    response = client.get("/absences")
+    response = client.get("/sportmonks/absences")
     assert 'id="absence-results"' in response.text
     assert 'hx-target="#absence-results"' in response.text
     assert 'method="get"' in response.text
@@ -48,7 +49,7 @@ def test_paging_preserves_the_active_filter(client):
     """
     import re
 
-    response = client.get("/absences", params={"category": "suspended", "page": 2})
+    response = client.get("/sportmonks/absences", params={"category": "suspended", "page": 2})
     pager = re.search(r'<div class="pager">.*?href="([^"]+)"', response.text, re.S)
     assert pager, "expected a pager link on page 2"
 

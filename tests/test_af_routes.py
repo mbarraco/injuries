@@ -74,7 +74,7 @@ def test_main_dashboard_still_works_unaffected(client):
     """The additive guarantee: wiring in af_routes must not disturb the
     existing Sportmonks-backed app, which uses a completely separate client
     fixture (app.db, not apifootball.db)."""
-    assert client.get("/").status_code == 200
+    assert client.get("/sportmonks/").status_code == 200
 
 
 # --------------------------------------------------------------------------- #

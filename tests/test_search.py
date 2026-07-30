@@ -39,14 +39,14 @@ def test_api_search_returns_json(client):
 def test_search_fragment_renders_links(client):
     """/search is the htmx endpoint: an HTML fragment, not JSON, containing a
     real entity_link href so a result can be clicked straight through."""
-    response = client.get("/search", params={"q": "A. Pl"})
+    response = client.get("/sportmonks/search", params={"q": "A. Pl"})
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert 'href="/player/5001"' in response.text
+    assert 'href="/sportmonks/player/5001"' in response.text
 
 
 def test_search_fragment_empty_for_short_query(client):
-    response = client.get("/search", params={"q": "a"})
+    response = client.get("/sportmonks/search", params={"q": "a"})
     assert response.status_code == 200
     assert response.text.strip() == "" or "no results" in response.text.lower()
 
@@ -67,13 +67,13 @@ def test_search_without_htmx_header_returns_a_full_page(client):
     """A plain form submit (no JavaScript) hits this same URL without the
     HX-Request header htmx sends — it must get a real page, not a bare
     fragment, or the search box only works with JS enabled."""
-    response = client.get("/search", params={"q": "A. Pl"})
+    response = client.get("/sportmonks/search", params={"q": "A. Pl"})
     assert "<nav" in response.text  # the app shell, not just the results
-    assert 'href="/player/5001"' in response.text
+    assert 'href="/sportmonks/player/5001"' in response.text
 
 
 def test_search_with_htmx_header_returns_the_bare_fragment(client):
-    response = client.get("/search", params={"q": "A. Pl"},
+    response = client.get("/sportmonks/search", params={"q": "A. Pl"},
                           headers={"HX-Request": "true"})
     assert "<nav" not in response.text
-    assert 'href="/player/5001"' in response.text
+    assert 'href="/sportmonks/player/5001"' in response.text

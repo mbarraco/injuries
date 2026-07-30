@@ -1,10 +1,11 @@
 def test_dashboard_links_into_every_view(client):
     """The dashboard is the entry into the navigation graph, so every view has
     to be reachable from it without typing a URL."""
-    response = client.get("/")
+    response = client.get("/sportmonks/")
 
-    for href in ("/absences", "/players", "/teams", "/leagues", "/seasons",
-                 "/types", "/analytics", "/coverage"):
+    for href in ("/sportmonks/absences", "/sportmonks/players", "/sportmonks/teams",
+                 "/sportmonks/leagues", "/sportmonks/seasons", "/sportmonks/types",
+                 "/sportmonks/analytics", "/sportmonks/coverage"):
         assert f'href="{href}"' in response.text, f"dashboard does not link to {href}"
 
 
@@ -12,14 +13,14 @@ def test_dashboard_warns_about_coverage(client):
     """Coverage ramps over time, which makes cross-year comparison invalid.
     That is the dataset's biggest trap, so a reader meets it on the way in
     rather than only if they visit /coverage."""
-    text = client.get("/").text.lower()
+    text = client.get("/sportmonks/").text.lower()
 
     assert "coverage" in text
     assert "/coverage" in text
 
 
 def test_dashboard_shows_headline_totals(client):
-    response = client.get("/")
+    response = client.get("/sportmonks/")
 
     assert response.status_code == 200
     assert "Absences" in response.text
@@ -29,27 +30,27 @@ def test_dashboard_shows_headline_totals(client):
 def test_dashboard_summarises_each_view_with_real_rows(client):
     """Summary cards show actual top rows, not just headings — each row links
     to the entity it names."""
-    response = client.get("/")
+    response = client.get("/sportmonks/")
 
-    assert 'href="/player/5001"' in response.text
-    assert 'href="/team/100"' in response.text
-    assert 'href="/league/10"' in response.text
+    assert 'href="/sportmonks/player/5001"' in response.text
+    assert 'href="/sportmonks/team/100"' in response.text
+    assert 'href="/sportmonks/league/10"' in response.text
 
 
 def test_coverage_page_moved_off_the_dashboard(client):
     """Good POC landing page, poor product homepage: it keeps its content at
     its own URL."""
-    response = client.get("/coverage")
+    response = client.get("/sportmonks/coverage")
 
     assert response.status_code == 200
     assert "Coverage &amp; Data Quality" in response.text
 
 
 def test_players_index_lists_and_links_players(client):
-    response = client.get("/players")
+    response = client.get("/sportmonks/players")
 
     assert response.status_code == 200
-    assert 'href="/player/5001"' in response.text
+    assert 'href="/sportmonks/player/5001"' in response.text
 
 
 def test_players_index_reports_the_real_total_when_capped(connection, monkeypatch):
@@ -71,8 +72,9 @@ def test_persistent_nav_links_every_entity_index(client):
     /absences is used here specifically because it is NOT the dashboard,
     ruling out a page-specific link standing in for real nav.
     """
-    response = client.get("/absences")
+    response = client.get("/sportmonks/absences")
 
-    for href in ("/", "/absences", "/analytics", "/players", "/teams",
-                 "/leagues", "/seasons", "/types", "/coverage"):
+    for href in ("/", "/sportmonks/absences", "/sportmonks/analytics", "/sportmonks/players",
+                 "/sportmonks/teams", "/sportmonks/leagues", "/sportmonks/seasons",
+                 "/sportmonks/types", "/sportmonks/coverage"):
         assert f'href="{href}"' in response.text, f"nav does not link to {href}"

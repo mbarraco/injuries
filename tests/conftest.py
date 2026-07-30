@@ -266,6 +266,19 @@ def client(tmp_path, raw_cache_dir, reference_db, players_dir, types_file,
 
 
 @pytest.fixture
+def both_vendors_client(client, tmp_path, monkeypatch):
+    """A client with BOTH databases wired up, for pages that read both at once
+    (currently only `/`, the neutral landing page). Builds on the `client`
+    fixture for the Sportmonks side (already patches app.db.DB_PATH) and adds
+    the API-Football side using the same small fixture dataset
+    test_af_queries.py already relies on."""
+    af_path = tmp_path / "apifootball.db"
+    _build_af_db(af_path)
+    monkeypatch.setattr("app.db.AF_DB_PATH", str(af_path))
+    return client
+
+
+@pytest.fixture
 def rates_client(tmp_path, raw_cache_dir, reference_db, rates_players_dir, types_file,
                  seasons_dir, countries_file, monkeypatch):
     """HTTP client over the rates fixture, where team 100's players (90 and 300

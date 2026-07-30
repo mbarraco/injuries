@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "sportmonks/_macros.html" as sm %}
+{% block title %}Search{% endblock %}{% block heading %}Search{% endblock %}
+{% block subtitle %}{% if query %}Results for "{{ query }}"{% else %}Find a player, team or league.{% endif %}{% endblock %}
+{% block content %}
+<section><div class="card">
+<form method="get" action="/sportmonks/search" class="filters">
+  <div><label>Query</label><input type="search" name="q" value="{{ query }}" autocomplete="off" placeholder="At least 2 characters…"></div>
+  <button>Search</button>
+</form>
+</div></section>
+<section>{% include "partials/search_results.html" %}</section>
+{% endblock %}
