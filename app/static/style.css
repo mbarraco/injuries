@@ -94,6 +94,7 @@ section > h2 {
   border-bottom: 1px solid var(--side-line);
 }
 .nav-group:last-of-type { border-bottom: none; }
+.nav-group-label { color: #7d879a; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 4px 8px 2px; }
 
 .sidebar a {
   color: var(--side-ink); text-decoration: none;

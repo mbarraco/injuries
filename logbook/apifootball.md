@@ -523,3 +523,292 @@ Captured verbatim (see `logs/apifootball-crawl.20260729-142857.log`):
 - **Operational rule: one crawler at a time**, or halve `--concurrency` on each.
   The pacer is per-process and cannot coordinate; fixing that properly would
   need a lockfile or shared counter, which is not worth it here.
+
+### Database and app built: `apifootball.db` + `/af/*`
+Schema `app/schema_af.sql`, ETL `app/etl_af.py`, queries `app/af_queries.py`,
+routes `app/af_routes.py`, templates `app/templates/af/`.
+
+**Loaded from the cache:**
+
+| table | rows |
+|---|---|
+| af_absence | **129,016** |
+| af_player_season | **98,246** |
+| af_player | 33,750 |
+| af_fixture | 32,238 |
+| af_team | 845 |
+| af_reason | 205 |
+| af_league / af_league_season | 58 / 117 |
+
+**Reason classification** (confirmed absences, `af_reason` mapping table):
+injury 109,805 · suspension 10,896 · administrative 8,272 · **unknown 43**.
+The unknown bucket is 34 blank strings plus 9 rows the vendor itself labels
+`"other"` — genuinely unclassifiable, not a marker gap. The 85.1% injury share
+independently reproduces the 85.3% upper bound measured offline from the raw
+cache by `af_measure_grain.py`, via a completely different code path.
+
+**Why the schema is NOT a copy of `schema.sql`** — each divergence is a measured
+fact, not a style choice:
+- no `absence.id` from a spell id (none exists) — PK is surrogate, grain is
+  `(player, fixture)`
+- no `start_date` / `end_date` / `duration_days` / `games_missed` /
+  `is_ongoing`; the vendor supplies none of them
+- `type` is new and load-bearing: `Missing Fixture` (112,298) vs
+  `Questionable` (16,718). **Never summed.** `af_confirmed_absence` is the
+  default population for every count.
+- `reason` is free text (205 values), so `af_reason` is a mapping TABLE, not a
+  type FK — inspectable and correctable without touching queries, which matters
+  given the classifier was wrong twice before it was right.
+
+**Two silent-failure guards the ETL enforces before writing anything:**
+1. **Refuses to build if any cache file is flagged `truncated`**, with the fix
+   command. A truncated /players file means a truncated minutes denominator,
+   which *inflates* every rate. `--allow-truncated` is the escape hatch and
+   records the fact in `af_data_quality`.
+2. **Every distinct reason must have an `af_reason` row.** `af_injury` joins
+   that table, so an unmapped reason vanishes from the view rather than
+   surfacing as uncategorised. `af_unmapped_reason` makes any gap queryable and
+   must be empty after a rebuild.
+
+**Two expected, named invariant reports** (both vendor quirks, not code bugs):
+- **39 orphan fixtures** (0.03%) — absences referencing a fixture absent from
+  `af_fixture`, concentrated in Eredivisie 2025 (38) and Armenia 2025 (1).
+  `/injuries` and `/fixtures` occasionally disagree about which matches exist
+  in the current season.
+- **120 orphan players** — injured badly enough to miss a whole season, so
+  `/players` (which only returns players *with* statistics) never lists them.
+  Their absences are kept and still counted in team/league rollups, but they
+  have **no minutes denominator**, so their rate is undefined rather than zero.
+
+**App layout decision: shared shell, separate domain.** A standalone
+`app-api-football/` was rejected — it would have duplicated `auth.py`, `db.py`,
+`macros.html`, `base.html` and ~19 near-identical templates, and `AGENTS.md` is
+explicit that macros exist to keep behaviour identical across pages. Instead
+`/af/*` is purely additive: its own query layer, its own read-only database
+via `db.connect_af()`, its own `af/_macros.html` for `/af/`-prefixed entity
+links, but the same auth, layout and shared macros. Nothing in the existing
+Sportmonks routes, queries or `app.db` changed.
+
+**Bugs caught writing the query layer, before they ever ran:**
+- `player_detail` built and discarded an entire unfiltered `absence_list()`
+  call — a real wasted query on every player page view.
+- Its headline `total_absences` summed only the `(league, season)` pairs present
+  in `af_player_season`, which would have **undercounted exactly the players
+  whose season coverage is thinnest** — the same 120 with no stats rows. Now
+  counted directly from `af_confirmed_absence`, with a regression test that
+  inserts an absence in an unmapped season and asserts the total includes it.
+
+**Test fixtures live in `tests/conftest.py`**: `af_db_path` (writable, before
+any connection opens) and `af_connection` / `af_client` (read-only). The split
+exists because `apifootball.db` is opened `mode=ro` like `app.db` — a test that
+needs to add rows must write through its own connection first, which is also a
+more honest simulation of rebuild-then-serve. A test that tried to mutate
+through `af_connection` failed correctly; the fixture was right and the test
+was wrong.
+
+---
+
+## 2026-07-30 — `/transfers` probed: 9 calls, 1,642 move rows
+
+First contact with `/transfers`. Nothing in this repo had ever called it, so
+every claim in `docs/football-api/transfers-endpoint.md` was unverified. Probed
+read-only via `scripts/apifootball/af_probe_transfers.py` (writes nothing to
+`data/raw/`): 6 well-travelled players, 2 large clubs (Ajax 194, Galatasaray
+645), 1 pagination test. The measurements below come from the probe's own
+response log, re-read from disk rather than re-fetched.
+
+### It escapes the 2020–2025 cap. This is the finding that matters.
+
+Every other endpoint on this vendor is hard-capped at 2020–2025. `/transfers`
+is not:
+
+| era | move rows in the 1,642-row sample |
+|---|---|
+| 1920s | 4 |
+| 1990s | 4 |
+| 2000s | 142 |
+| 2010s | 695 |
+| 2020s | 797 |
+
+**51% of rows predate the window every other API-Football endpoint is limited
+to.** Career history before 2020 is not obtainable from this vendor by any
+other route. That alone justifies the crawl.
+
+### `?team=` is club-scoped — measured, not assumed
+
+Ajax: 704 move rows, **704 of 704 touch team 194**. Galatasaray: 866 of 866.
+So the team form returns only moves in and out of that club, not the full
+careers of the players involved. It does *not* substitute for a per-player
+crawl if the goal is career reconstruction.
+
+It is still worth running first, because it is absurdly cheap and *wider* than
+our player dimension: one Ajax call returned **333 player envelopes** against
+the **152** distinct players `af_player_season` holds for Ajax — 2.2x. Same for
+Galatasaray (310 vs 144).
+
+| crawl | calls | what it gets |
+|---|---|---|
+| per-team (`af_team`) | ~845 | every move in/out of our 845 clubs, all history, incl. players outside `af_player` |
+| per-player (`af_player`) | ~33,750 | complete careers, incl. moves between two clubs we don't cover |
+
+### `type` is a THREE-way mixed field
+
+The doc predicted a small category vocabulary. It is worse: one column carries
+a category, a fee, or a null-marker, and the fee has three formats.
+
+Categories seen (12 distinct):
+
+| value | rows | note |
+|---|---|---|
+| `Loan` | 483 | |
+| `N/A` | 353 | **21% of all rows.** Not "no transfer" — often an unlabelled loan return |
+| `Free` | 290 | |
+| `Transfer` | 76 | paid, fee undisclosed |
+| `Return from loan` | 53 | |
+| `Free agent` | 45 | signed while unattached — arguably NOT the same as `Free` |
+| `Back from Loan` | 28 | |
+| `Free Transfer` | 11 | |
+| `Raise` | 7 | |
+| `-` | 5 | |
+| `End of Loan` | 1 | |
+| `Swap` | 1 | |
+
+Three spellings of one concept: `Return from loan` / `Back from Loan` /
+`End of Loan` (82 rows). Three of another: `Free` / `Free Transfer` /
+`Free agent`. **Do not hard-code these** — it needs an `af_transfer_type`
+mapping table with the same invariant as `af_reason`: every distinct raw value
+gets a row, and the unmapped report must be empty after a rebuild.
+
+Fees: **112 distinct strings, 289 rows (17.6%)**, in three formats —
+`"€ 7M"` (281), `"1.5M €"` suffix-symbol (7), and `"2.6M"` with no currency
+symbol at all (1). All euros in this sample, but the sample is two European
+clubs. A parsed fee is **inferred, not measured**, and only ~18% of rows carry
+one — so this cannot be modelled as Sportmonks' `amount INTEGER` column beside
+a clean `type_id`.
+
+### The `teams` slot sometimes contains a PLAYER, not a club
+
+3,284 team sides in the sample: **17 have no id, 4 have no name.** Inspecting
+the id-less names is where it gets bad — they include `Icardi Mauro`,
+`Lemina Mario`, `Rony Lopes`, `Ouazane Abdellah`, `Karasu Eyup Can`,
+`Kahraman Yusuf`, `Arac Ege`. **Those are people.** The vendor has put player
+names in the club-name field.
+
+Unguarded, that renders a club page for Mauro Icardi. It confirms the
+Sportmonks precedent for real — `from_team_id` / `to_team_id` must not be
+foreign keys, the name must be stored alongside the id, and **an id-less side
+must render as plain text, never as a link** (same rule as unresolved entities
+on the Sportmonks side).
+
+### Dates are real but season-stamped, and one date is a batch sentinel
+
+**Zero null dates** in 1,642 rows — and only 4 rows before 1990, so unknown
+dates are *not* being mass-backfilled with a sentinel. But the distribution is
+heavily clustered:
+
+- **`2026-06-29` x50** — a bulk-stamped batch, almost certainly contract expiry
+  written on one day rather than 50 real same-day moves.
+- **`YYYY-07-01` dominates every year** (33 on 2025-07-01, 32 on 2022-07-01,
+  29 on 2024-07-01, …) — the season-boundary convention, meaning "start of
+  season", not the actual day of the move.
+
+So date is trustworthy to the **season**, not the day. Any metric measuring an
+interval in days from a transfer — "injured within N days of joining" — would
+be corrupted by July-1 stamping and by the batch dates. Say season, not day.
+
+### There is no transfer id, and the obvious composite key is not unique
+
+The doc says to model a transfer as `(player, from, to, date)`. Measured
+against the sample, that key **collides twice** — player 19034 has two byte-identical
+rows for `2020-08-01 Ajax→Galatasaray` and two more for `2020-01-11 Galatasaray→Ajax`.
+Identical, so collapsing loses nothing, but a `UNIQUE` constraint on that key
+would either abort the ETL or silently drop rows depending on the insert mode.
+Dedup has to be an explicit, counted step.
+
+Duplication will also arrive *across* sources: a covered-club-to-covered-club
+move appears in both clubs' team files and in the player's file.
+
+### `page` is rejected, like `/injuries`
+
+`/transfers?player=2741&page=2` → HTTP 200, `errors: {"page": "The Page field
+do not exist."}`. Omit the field entirely. `paging.total` was 1 on every
+response; the per-team calls returned 333 and 310 envelopes unpaginated, so
+there is no evidence of a page ceiling to truncate against — but `truncated`
+should still be recorded, because that assumption is exactly the kind that
+went wrong on `/players`.
+
+### Chain breaks make the doc's membership inference unsafe
+
+The doc claims: *"Between two consecutive transfers the player can be assumed
+to belong to the destination club."* Measured on the 6 probed players, that
+fails often — 4 of 11 consecutive pairs for Piccoli, 3 of 15 for Rony Lopes,
+3 of 10 for Bistrović, 2 of 10 for Lammers, 1 of 12 for Ryan.
+
+The mechanism is visible in Piccoli's history: `2022-01-25 Atalanta→Genoa
+(Loan)` is followed by `2022-07-01 Atalanta→Verona (Loan)`. There is no
+`Genoa→Atalanta` return row — **loan returns are recorded inconsistently**,
+sometimes explicitly, sometimes as `N/A`, sometimes not at all. Reconstructing
+"which club did this player belong to on date X" from transfers alone is
+therefore inference with a measurable error rate, not a lookup.
+
+### Also present
+
+`update` (an ISO timestamp) on every player envelope — the hook for incremental
+refresh during transfer windows, without re-crawling everything.
+
+### Built the same day: crawl, schema, ETL, queries, app
+
+`ingest/apifootball/transfers.py` — two subjects, `team` before `player` in
+`SUBJECT_ORDER` so an interrupted `--target all` always buys the cheap wide pass
+first. Uses `client.get`, not `get_all`, because `page` is rejected; records
+`paging_total` anyway, since a value other than 1 is the only warning we would
+ever get that the endpoint started paginating. `report_paging_anomalies()` reads
+it — deliberately, after `truncated` spent weeks being recorded faithfully and
+never read.
+
+**The cascade.** `--include-discovered` folds player ids named *only* by cached
+team transfer files into the player work list. Those players are unreachable
+through `/players`, `/injuries` or `/fixtures`, all of which are capped at
+2020–2025. The player work list is also the union of `/players` **and**
+`/injuries`, because a player injured for a whole season never appears in
+`/players` — the 120 orphans. A crawl driven by `/players` alone would skip
+exactly the players this project is about.
+
+**Schema.** `af_transfer` + `af_transfer_type`, with the fee parse living in the
+mapping table so all 112+ distinct strings are inspectable in one place rather
+than buried in a regex. Fee is stored three ways — `fee_amount`,
+`fee_currency`, `fee_eur` — so the bare `"2.6M"` case (amount known,
+denomination unstated) cannot be silently counted as euros. `fee_format` records
+which of `sym_num` / `num_sym` / `bare` matched, making a mis-parse visible by
+format instead of requiring every string to be eyeballed.
+
+`from_team_id` / `to_team_id` are **not** foreign keys and the names are stored
+beside them, for two independently measured reasons: careers span clubs outside
+these 47 competitions, and the vendor sometimes puts a person in the club field.
+
+**Dedup is explicit and counted.** `collect_transfers()` keys on the fact
+`(player, date, type, from, to)` — excluding `source`, since the same move seen
+from a club and from the player is one transfer — and records `collapsed`,
+`confirmed_by_both` and `duplicate_within_subject` separately in
+`af_data_quality`. Cross-source agreement and true vendor duplication are
+different things and collapsing them would have hidden both. No `UNIQUE`
+constraint, because the documented natural key is not unique.
+
+**Two new ETL guards**, both for failures that would produce plausible numbers:
+an `unknown` category share above 35% (measured baseline ~21%, almost all of it
+the vendor's own `N/A`) flags a probably-unparsed new type or fee format; any
+non-euro `fee_currency` is reported explicitly, because those rows carry
+`fee_amount` but not `fee_eur`, so every euro total silently excludes them.
+
+**App.** `/af/transfers` overview, plus career tables on the player page and
+in/out tables on the team page, all through new `af/_macros.html` macros —
+`transfer_type` renders the *category*, never the raw mixed string, and
+`transfer_fee` distinguishes a euro amount from an undenominated one from
+"free" (where no fee is correct, not missing). Both club sides go through the
+existing `af_entity_link`, which already renders an id-less entity as plain
+text; the query layer also returns explicit `from_linkable` / `to_linkable`
+flags so a template cannot get it wrong by forgetting to check.
+
+`tests/test_af_transfers.py` covers every fee format and category value measured
+above, both dedup paths, the id-less side, and the `af_unmapped_transfer_type`
+invariant in both directions. Not yet run at the time of writing.

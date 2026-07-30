@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% import "af/_macros.html" as af %}{% import "macros.html" as macros %}{% block title %}{{ league.name }}{% endblock %}{% block heading %}{{ league.name }}{% endblock %}
+{% block subtitle %}{{ league.country or 'Country unknown' }}{% endblock %}
+{% block content %}
+<section><h2>By season</h2><div class="table-wrap"><table><thead><tr><th>Season</th><th class="num">Absences</th><th class="num">Questionable</th></tr></thead><tbody>
+{% for row in by_season %}<tr><td>{{ row.season }}</td><td class="num">{{ row.absences - row.questionable }}</td><td class="num">{{ row.questionable }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No seasons recorded.') if not by_season }}</section>
+
+<section><h2>Recent absences ({{ recent.total }})</h2><div class="table-wrap"><table><thead><tr><th>Player</th><th>Team</th><th>Season</th><th>Reason</th><th>Date</th></tr></thead><tbody>
+{% for row in recent['items'] %}<tr><td>{{ af.af_entity_link('player', row.player_id, row.player or 'Unknown') }}</td><td>{{ af.af_entity_link('team', row.team_id, row.team) }}</td><td>{{ row.season }}</td><td>{{ row.reason or '—' }}</td><td>{{ row.fixture_date[:10] if row.fixture_date else '—' }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No absences recorded for this league.') if not recent['items'] }}
+<p><a href="/af/absences?league_id={{ league.id }}">All {{ '{:,}'.format(recent.total) }} absences for this league →</a></p></section>
+<p><a href="/af/leagues">← All competitions</a></p>
+{% endblock %}

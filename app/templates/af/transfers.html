@@ -1,0 +1,73 @@
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "af/_macros.html" as af %}
+{% block title %}Transfers{% endblock %}{% block heading %}Career transfers{% endblock %}
+{% block subtitle %}The only part of this dataset that reaches back before 2020.{% endblock %}
+{% block content %}
+
+<section><div class="card banner">
+<p><strong>This table is not capped at 2020–2025.</strong> Every other table on
+the API-Football side is limited to the seasons the vendor covers for fixtures
+and injuries. Transfers are not: the history below reaches decades further back,
+and it is the only route to a player's pre-2020 career in this dataset.</p>
+</div></section>
+
+<section><div class="stat-row">
+{{ macros.stat('{:,}'.format(overview.moves), 'Distinct moves') }}
+{{ macros.stat('{:,}'.format(overview.players), 'Players with a career recorded') }}
+{{ macros.stat(overview.earliest[:4] if overview.earliest else '—', 'Earliest') }}
+{{ macros.stat(overview.latest[:4] if overview.latest else '—', 'Latest') }}
+{{ macros.stat('{:,}'.format(overview.fee_rows), 'Moves with a parsed euro fee') }}
+{{ macros.stat('{:,}'.format(overview.confirmed_both), 'Confirmed by club and player') }}
+</div></section>
+
+{% if overview.moves %}
+<section><div class="card">
+<h2>How to read these numbers</h2>
+<p class="note">{{ overview.date_note }}</p>
+<p class="note">{{ overview.fee_note }}</p>
+<p class="note"><strong>A move is one row, however many sources reported it.</strong>
+A transfer between two clubs we cover is reported by both clubs and by the
+player. Those are collapsed into a single row —
+{{ '{:,}'.format(overview.confirmed_both) }} of the moves below carry
+corroboration from more than one source, which is a confidence signal, not extra
+volume.</p>
+{% if overview.unlinkable_sides %}
+<p class="note"><strong>{{ '{:,}'.format(overview.unlinkable_sides) }} moves name a club
+we cannot identify.</strong> Those sides appear as plain text rather than links.
+Some are clubs outside these 47 competitions; a few are the vendor putting a
+player's name in the club field.</p>
+{% endif %}
+</div></section>
+
+<section><h2>By category</h2><div class="card"><div class="table-wrap">
+<table><thead><tr>
+  <th>Category</th><th class="num">Moves</th>
+  <th class="num">With a euro fee</th><th class="num">Fee total</th>
+</tr></thead><tbody>
+{% for row in categories %}<tr>
+  <td>{{ row.category }}</td>
+  <td class="num">{{ '{:,}'.format(row.moves) }}</td>
+  <td class="num">{{ '{:,}'.format(row.fee_rows) }}</td>
+  <td class="num">{% if row.fee_eur_total %}€{{ '{:,}'.format(row.fee_eur_total) }}{% else %}—{% endif %}</td>
+</tr>{% endfor %}
+</tbody></table></div>
+<p class="note">"Moves" and "with a euro fee" are shown side by side deliberately:
+in every category most rows carry no fee, so a fee total is a floor over the
+subset that does — never that category's market value. "Unrecorded" is the
+vendor's own <code>N/A</code>, which often marks an unlabelled loan return rather
+than an absence of information.</p>
+</div></section>
+
+<section><h2>Moves per year</h2><div class="card"><div class="table-wrap">
+<table><thead><tr><th>Year</th><th class="num">Moves</th></tr></thead><tbody>
+{% for row in by_year %}<tr><td>{{ row.year }}</td><td class="num">{{ '{:,}'.format(row.moves) }}</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="note">Grouped by calendar year, not season: a transfer carries a date,
+not a season, and deriving one from a July-1-stamped date would be an inference
+presented as a fact. Recent years are denser because the vendor's own coverage
+is — this is a record of what was reported, not of how busy the market was.</p>
+</div></section>
+{% else %}
+<section>{{ macros.empty_state('No transfers loaded yet. Run the transfers crawl, then rebuild the database.') }}</section>
+{% endif %}
+
+{% endblock %}

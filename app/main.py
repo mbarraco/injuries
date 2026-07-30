@@ -7,12 +7,15 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app import auth, db, matrix, queries
+from app import af_routes, auth, db, matrix, queries
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI(title="Injury Data POC")
 app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(HERE, "templates"))
+# Additive: API-Football lives at /af/*, its own database, its own query
+# layer. Shares auth, static assets and the base layout/macros only.
+app.include_router(af_routes.router)
 
 security = HTTPBasic()
 

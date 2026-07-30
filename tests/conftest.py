@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 import sqlite3
 
 import pytest
@@ -12,6 +13,9 @@ from app import auth, db, etl
 # whatever the developer has in .env.
 _USER, _PASSWORD = "tester", "testpass"
 _AUTH_HEADER = "Basic " + base64.b64encode(f"{_USER}:{_PASSWORD}".encode()).decode()
+
+_AF_SCHEMA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "app", "schema_af.sql")
 
 
 @pytest.fixture
@@ -320,3 +324,128 @@ def multi_competition_connection(tmp_path, raw_cache_dir, reference_db, countrie
     etl.build(raw_cache_dir, reference_db, output, players_dir=players,
               seasons_dir=seasons, countries_file=countries_file)
     return db.connect(output)
+
+
+# --------------------------------------------------------------------------- #
+# API-Football fixtures. Built directly from app/schema_af.sql with a small,
+# hand-inserted dataset rather than through app/etl_af.py, which reads a
+# hardcoded cache directory instead of taking injectable paths (unlike
+# app/etl.py's build()) — same reason reference_db above hand-builds tables
+# rather than running the Sportmonks resolve pipeline.
+#
+# Dataset deliberately covers the edge cases this schema exists to get right:
+# - Player 1 (Alpha): 3 confirmed absences (injury x2, suspension x1) + 1
+#   Questionable row that must NOT be counted with the confirmed three; 900
+#   recorded minutes (above AF_MINUTES_FLOOR, so a rate exists).
+# - Player 2 (Beta): 1 confirmed absence, 100 minutes (below the floor — the
+#   rate must be None, not zero).
+# - Player 3: referenced by an absence but has NO af_player row — the
+#   "injured all season, absent from /players" case measured 2026-07-30. The
+#   absence must still count in league/team/reason totals.
+# --------------------------------------------------------------------------- #
+def _build_af_db(path):
+    connection = sqlite3.connect(path)
+    with open(_AF_SCHEMA_PATH, encoding="utf-8") as handle:
+        connection.executescript(handle.read())
+
+    connection.execute("INSERT INTO af_league (id, name, country) VALUES (10, 'Test League', 'Testland')")
+    connection.execute("INSERT INTO af_league_season (league_id, season, has_injuries) VALUES (10, 2024, 1)")
+    connection.execute("INSERT INTO af_team (id, name, country, founded) VALUES (100, 'FC Test', 'Testland', 1900)")
+
+    connection.execute("INSERT INTO af_player (id, name, birth_date, nationality, height_cm, weight_kg) "
+                       "VALUES (1, 'Alpha', '2000-01-01', 'Testland', 180, 75)")
+    connection.execute("INSERT INTO af_player (id, name, birth_date, nationality) "
+                       "VALUES (2, 'Beta', '1995-06-15', 'Testland')")
+    # Player 3 deliberately has NO af_player row.
+
+    for fid, date in ((1, '2024-02-01T15:00:00+00:00'), (2, '2024-02-08T15:00:00+00:00'),
+                      (3, '2024-02-15T15:00:00+00:00'), (4, '2024-03-01T15:00:00+00:00')):
+        connection.execute(
+            "INSERT INTO af_fixture (id, league_id, season, date, home_team_id, away_team_id) "
+            "VALUES (?, 10, 2024, ?, 100, 100)", (fid, date))
+
+    connection.execute("INSERT INTO af_reason (reason, category, body_part, row_count) "
+                       "VALUES ('Hamstring Injury', 'injury', 'hamstring', 3)")
+    connection.execute("INSERT INTO af_reason (reason, category, row_count) "
+                       "VALUES ('Suspended', 'suspension', 1)")
+
+    absences = [
+        # player, fixture, team, league, season, type, reason, date
+        (1, 1, 100, 10, 2024, 'Missing Fixture', 'Hamstring Injury', '2024-02-01T15:00:00+00:00'),
+        (1, 2, 100, 10, 2024, 'Missing Fixture', 'Hamstring Injury', '2024-02-08T15:00:00+00:00'),
+        (1, 3, 100, 10, 2024, 'Missing Fixture', 'Suspended', '2024-02-15T15:00:00+00:00'),
+        (1, 4, 100, 10, 2024, 'Questionable', 'Hamstring Injury', '2024-03-01T15:00:00+00:00'),
+        (2, 1, 100, 10, 2024, 'Missing Fixture', 'Suspended', '2024-02-01T15:00:00+00:00'),
+        (3, 2, 100, 10, 2024, 'Missing Fixture', 'Hamstring Injury', '2024-02-08T15:00:00+00:00'),
+    ]
+    connection.executemany(
+        "INSERT INTO af_absence (player_id, fixture_id, team_id, league_id, season, type, reason, fixture_date) "
+        "VALUES (?,?,?,?,?,?,?,?)", absences)
+
+    connection.executemany(
+        "INSERT INTO af_player_season (player_id, league_id, season, team_id, position, appearances, "
+        "lineups, minutes, rating) VALUES (?,?,?,?,?,?,?,?,?)", [
+            (1, 10, 2024, 100, 'Defender', 10, 10, 900, 6.8),
+            (2, 10, 2024, 100, 'Forward', 2, 1, 100, 6.1),
+        ])
+
+    # Transfers. Covers what the 2026-07-30 probe measured:
+    # - a euro fee, and a fee whose currency the vendor did not state
+    # - a synonym pair that must collapse to one category ('Free'/'Free Transfer')
+    # - a pre-2020 date, proving this table is NOT bounded by af_league_season
+    # - a club side with a NAME but no ID (the vendor's player-in-club-field bug)
+    # - a move whose player has no af_player row
+    connection.executemany(
+        "INSERT INTO af_transfer_type (type, category, fee_amount, fee_currency, "
+        "fee_eur, fee_format, row_count) VALUES (?,?,?,?,?,?,?)", [
+            ('€ 7M', 'fee', 7000000, 'EUR', 7000000, 'sym_num', 1),
+            ('2.6M', 'fee', 2600000, None, None, 'bare', 1),
+            ('Loan', 'loan', None, None, None, None, 1),
+            ('Free', 'free', None, None, None, None, 1),
+            ('Free Transfer', 'free', None, None, None, None, 1),
+            ('N/A', 'unknown', None, None, None, None, 1),
+        ])
+    connection.executemany(
+        "INSERT INTO af_transfer (player_id, player_name, date, type, from_team_id, "
+        "from_team_name, to_team_id, to_team_name, source) VALUES (?,?,?,?,?,?,?,?,?)", [
+            (1, 'Alpha', '2016-07-01', '€ 7M', 900, 'Old Club', 100, 'FC Test', 'both'),
+            (1, 'Alpha', '2019-01-15', 'Loan', 100, 'FC Test', 901, 'Loan Club', 'team'),
+            (1, 'Alpha', '2019-07-01', 'N/A', 901, 'Loan Club', 100, 'FC Test', 'player'),
+            (2, 'Beta', '2021-07-01', 'Free', 902, 'Free Club', 100, 'FC Test', 'team'),
+            (2, 'Beta', '2023-07-01', 'Free Transfer', 100, 'FC Test', 903, 'Next Club', 'team'),
+            # An id-less club side: name present, id NULL. Must never be a link.
+            (2, 'Beta', '2024-07-01', '2.6M', None, 'Icardi Mauro', 100, 'FC Test', 'player'),
+            # Player 3 has no af_player row but does have a career.
+            (3, 'Gamma', '2018-08-01', 'Loan', 904, 'Somewhere FC', 100, 'FC Test', 'player'),
+        ])
+    connection.commit()
+    connection.close()
+
+
+@pytest.fixture
+def af_db_path(tmp_path):
+    """The writable file path, for tests that need to add rows BEFORE the
+    read-only connection is opened — af.db (like app.db) is opened mode=ro,
+    so a test cannot mutate through `af_connection` itself; it must write via
+    its own connection to this path first, matching how a real rebuild works."""
+    path = tmp_path / "apifootball.db"
+    _build_af_db(path)
+    return path
+
+
+@pytest.fixture
+def af_connection(af_db_path):
+    connection = db.connect_af(af_db_path)
+    yield connection
+    connection.close()
+
+
+@pytest.fixture
+def af_client(tmp_path, monkeypatch):
+    monkeypatch.setenv(auth.USER_VAR, _USER)
+    monkeypatch.setenv(auth.PASSWORD_VAR, _PASSWORD)
+    path = tmp_path / "apifootball.db"
+    _build_af_db(path)
+    monkeypatch.setattr("app.db.AF_DB_PATH", str(path))
+    from app.main import app
+    return TestClient(app, headers={"Authorization": _AUTH_HEADER})

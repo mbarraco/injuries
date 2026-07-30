@@ -38,6 +38,18 @@ FIXTURE_LINEUPS_DIR = os.path.join(RAW_ROOT, "fixture_lineups")
 FIXTURE_PLAYERS_DIR = os.path.join(RAW_ROOT, "fixture_players")
 FIXTURE_STATS_DIR = os.path.join(RAW_ROOT, "fixture_statistics")
 
+# Transfers, cached under two keys because the endpoint answers two questions
+# and neither subsumes the other (logbook 2026-07-30):
+#   * by team  — every move in/out of one club, all history. 845 calls total.
+#     Measured club-scoped: 704/704 Ajax rows touch Ajax, so this does NOT
+#     return the players' wider careers.
+#   * by player — one player's complete career, including moves between clubs
+#     outside our 47 competitions. The only way to get those.
+# Kept in separate trees rather than merged so a re-crawl of one never has to
+# reason about which subject produced a given file.
+TRANSFERS_TEAM_DIR = os.path.join(RAW_ROOT, "transfers_team")
+TRANSFERS_PLAYER_DIR = os.path.join(RAW_ROOT, "transfers_player")
+
 LEAGUES_FILE = os.path.join(RAW_ROOT, "leagues.json")
 STATUS_FILE = os.path.join(RAW_ROOT, "status.json")
 COUNTRIES_FILE = os.path.join(RAW_ROOT, "countries.json")
@@ -67,6 +79,18 @@ def fixture_path(directory, fixture_id):
     """
     shard = f"{int(fixture_id) % 100:02d}"
     return os.path.join(directory, shard, f"{fixture_id}.json")
+
+
+def subject_path(directory, subject_id):
+    """Cache key for one transfer subject: e.g. transfers_player/41/276041.json.
+
+    Sharded like `fixture_path` for the same reason — the per-player tree is
+    tens of thousands of files. Team transfers use the same helper for
+    consistency even though 845 files would be fine flat: one code path means a
+    later widening of the team work list cannot outgrow its layout unnoticed.
+    """
+    shard = f"{int(subject_id) % 100:02d}"
+    return os.path.join(directory, shard, f"{subject_id}.json")
 
 
 def load_coverage():

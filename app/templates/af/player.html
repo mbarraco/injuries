@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% import "af/_macros.html" as af %}{% import "macros.html" as macros %}{% block title %}{{ player.name }}{% endblock %}{% block heading %}{{ player.name }}{% endblock %}
+{% block subtitle %}{{ player.nationality or 'Nationality unknown' }}{% if player.birth_date %} · born {{ player.birth_date }}{% endif %}{% endblock %}
+{% block content %}
+<section><div class="stat-row">
+{{ macros.stat(total_absences, 'Confirmed absences') }}
+{{ macros.stat('{:,}'.format(total_minutes), 'Minutes recorded') }}
+{{ macros.stat(rate_per_90 if rate_per_90 is not none else '—', 'Absences per 90 min') }}
+</div>{% if rate_per_90 is none %}<p class="note">Fewer than {{ minutes_floor }} recorded minutes — not enough to compute a rate. {{ grain_note }}</p>{% else %}<p class="note">{{ grain_note }}</p>{% endif %}</section>
+
+<section><h2>Seasons</h2><div class="table-wrap"><table><thead><tr><th>League</th><th>Season</th><th>Team</th><th>Position</th><th class="num">Minutes</th><th class="num">Appearances</th><th class="num">Absences</th></tr></thead><tbody>
+{% for row in seasons %}<tr><td>{{ af.af_entity_link('league', row.league_id, row.league) }}</td><td>{{ row.season }}</td><td>{{ af.af_entity_link('team', row.team_id, row.team) }}</td><td>{{ row.position or '—' }}</td><td class="num">{{ '{:,}'.format(row.minutes) if row.minutes is not none else '—' }}</td><td class="num">{{ row.appearances if row.appearances is not none else '—' }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No season stats recorded for this player.') if not seasons }}</section>
+
+<section><h2>Recent absences ({{ recent|length }})</h2><div class="table-wrap"><table><thead><tr><th>Team</th><th>League</th><th>Reason</th><th>Date</th></tr></thead><tbody>
+{% for row in recent %}<tr><td>{{ af.af_entity_link('team', row.team_id, row.team) }}</td><td>{{ af.af_entity_link('league', row.league_id, row.league) }}</td><td>{{ row.reason or '—' }}</td><td>{{ row.fixture_date[:10] if row.fixture_date else '—' }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No absences recorded for this player.') if not recent }}</section>
+<section>{{ macros.count_heading('Career transfers', transfers.shown, transfers.total) }}
+<div class="table-wrap"><table><thead><tr><th>Date</th><th>From</th><th>To</th><th>Type</th><th class="num">Fee</th></tr></thead><tbody>
+{% for row in transfers.items %}{{ af.transfer_row(row, show_player=False) }}{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No transfers recorded for this player.') if not transfers.items }}
+{% if transfers.items %}<p class="note">{{ transfers.date_note }} Unlike the seasons
+above, this career history is <strong>not</strong> limited to 2020–2025 — it is the
+only part of this dataset that reaches further back. A club shown as plain text is
+one outside these 47 competitions.</p>{% endif %}</section>
+
+<p><a href="/af/players">← All players</a></p>
+{% endblock %}

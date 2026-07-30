@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "af/_macros.html" as af %}{% block title %}API-Football Analytics{% endblock %}{% block heading %}Analytics{% endblock %}
+{% block subtitle %}Confirmed absences only — Questionable rows are excluded from every breakdown below.{% endblock %}
+{% block content %}
+<section><h2>By position</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>Position</th><th class="num">Absences</th></tr></thead><tbody>
+{% for row in by_position %}<tr><td>{{ row.position }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
+</tbody></table></div><p class="note">Position is season-scoped (from player_season), not a fixed player attribute — a player who changed role appears under each position he actually played.</p></div></section>
+
+<section><h2>By age band</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>Age band</th><th class="num">Absences</th></tr></thead><tbody>
+{% for row in by_age_band %}<tr><td>{{ row.band }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
+</tbody></table></div><p class="note">Age is computed at the fixture date, not today.</p></div></section>
+
+<section><h2>Top reasons</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>Reason</th><th>Category</th><th class="num">Absences</th></tr></thead><tbody>
+{% for row in by_reason %}<tr><td>{{ row.reason or '(blank)' }}</td><td>{{ row.category }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
+</tbody></table></div><p class="note">Free text from the vendor, 205 distinct values total — this table shows the most common.</p></div></section>
+
+<section><h2>By competition</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>League</th><th>Country</th><th class="num">Absences</th></tr></thead><tbody>
+{% for row in by_league %}<tr><td>{{ af.af_entity_link('league', row.league_id, row.league) }}</td><td>{{ row.country }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
+</tbody></table></div></div></section>
+
+<section><h2>By month</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>Month</th><th class="num">Absences</th></tr></thead><tbody>
+{% for row in by_month %}<tr><td>{{ row.month }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
+</tbody></table></div></div></section>
+{% endblock %}

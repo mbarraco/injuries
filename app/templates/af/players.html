@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% import "af/_macros.html" as af %}{% import "macros.html" as macros %}{% block title %}API-Football Players{% endblock %}{% block heading %}Players{% endblock %}
+{% block subtitle %}{{ '{:,}'.format(shown) }} of {{ '{:,}'.format(total) }} shown, ranked by confirmed absences.{% endblock %}
+{% block content %}<section><div class="table-wrap"><table><thead><tr><th>Player</th><th>Nationality</th><th class="num">Confirmed absences</th></tr></thead><tbody>
+{% for row in items %}<tr><td>{{ af.af_entity_link('player', row.id, row.name) }}</td><td>{{ row.nationality or '—' }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No players recorded.') if not items }}</section>{% endblock %}

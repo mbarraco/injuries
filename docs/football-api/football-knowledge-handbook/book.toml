@@ -1,0 +1,8 @@
+[book]
+title = "API-Football Football Knowledge Handbook"
+authors = ["Injuries project maintainers"]
+language = "en"
+src = "."
+
+[output.html]
+git-repository-url = ""

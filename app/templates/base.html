@@ -49,6 +49,20 @@
       <a href="/admin" class="{{ 'active' if active == 'admin' else '' }}">Admin</a>
     </div>
 
+    {# Separate database, separate vendor -- see app/schema_af.sql. Same
+       layout and macros, different domain: absences here are (player, fixture)
+       appearances with no spell id, not the Sportmonks spells above. #}
+    <div class="nav-group">
+      <div class="nav-group-label">API-Football</div>
+      <a href="/af/" class="{{ 'active' if active == 'af-dashboard' else '' }}">Dashboard</a>
+      <a href="/af/absences" class="{{ 'active' if active == 'af-absences' else '' }}">Absences</a>
+      <a href="/af/analytics" class="{{ 'active' if active == 'af-analytics' else '' }}">Analytics</a>
+      <a href="/af/players" class="{{ 'active' if active == 'af-players' else '' }}">Players</a>
+      <a href="/af/teams" class="{{ 'active' if active == 'af-teams' else '' }}">Teams</a>
+      <a href="/af/transfers" class="{{ 'active' if active == 'af-transfers' else '' }}">Transfers</a>
+      <a href="/af/leagues" class="{{ 'active' if active == 'af-leagues' else '' }}">Leagues</a>
+    </div>
+
     <div class="sidebar-foot"><a href="/docs">API docs →</a></div>
   </nav>
 

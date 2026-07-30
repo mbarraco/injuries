@@ -1,0 +1,34 @@
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "af/_macros.html" as af %}
+{% block title %}API-Football Dashboard{% endblock %}{% block heading %}API-Football{% endblock %}
+{% block subtitle %}47 UEFA competitions, seasons 2020–2025 — a separate vendor, a separate database.{% endblock %}
+{% block content %}
+<section><div class="card banner"><p><strong>Different grain from the Sportmonks side.</strong> {{ totals.grain_note }} A count here is not comparable to a count in the main Absences view.</p></div></section>
+
+<section><div class="stat-row">
+{{ macros.stat(totals.absences, 'Confirmed absences', '/af/absences') }}
+{{ macros.stat(totals.questionable, 'Questionable (not counted above)', '/af/absences?confirmed_only=false') }}
+{{ macros.stat(totals.players, 'Players', '/af/players') }}
+{{ macros.stat(totals.teams, 'Teams', '/af/teams') }}
+{{ macros.stat(totals.leagues, 'Competitions', '/af/leagues') }}
+{{ macros.stat(totals.earliest_season, 'Earliest season') }}
+{{ macros.stat(totals.latest_season, 'Latest season') }}
+</div></section>
+
+<section><h2>Reason categories</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>Category</th><th class="num">Confirmed absences</th></tr></thead><tbody>
+{% for row in categories %}<tr><td>{{ row.category }}</td><td class="num">{{ '{:,}'.format(row.rows_count) }}</td></tr>{% endfor %}
+</tbody></table></div><p class="note">Suspensions and administrative absences ride on the same vendor feed as injuries — filter by category on the <a href="/af/absences">Absences</a> page.</p></div></section>
+
+<section><h2>Most absences</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>Player</th><th class="num">Absences</th><th class="num">Minutes</th></tr></thead><tbody>
+{% for row in players %}<tr><td>{{ af.af_entity_link('player', row.id, row.name) }}</td><td class="num">{{ row.absences }}</td><td class="num">{{ '{:,}'.format(row.minutes) if row.minutes else '—' }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No players recorded.') if not players }}<p><a href="/af/players">All players →</a></p></div></section>
+
+<section><h2>Absence burden by team</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>Team</th><th class="num">Absences</th></tr></thead><tbody>
+{% for row in teams %}<tr><td>{{ af.af_entity_link('team', row.id, row.name) }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No teams recorded.') if not teams }}<p><a href="/af/teams">All teams →</a></p></div></section>
+
+<section><h2>Competitions</h2><div class="card"><div class="table-wrap"><table><thead><tr><th>League</th><th>Country</th><th class="num">Absences</th></tr></thead><tbody>
+{% for row in leagues %}<tr><td>{{ af.af_entity_link('league', row.league_id, row.name) }}</td><td>{{ row.country or '—' }}</td><td class="num">{{ row.absences }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No competitions recorded.') if not leagues }}<p><a href="/af/leagues">All competitions →</a></p></div></section>
+
+<section><div class="card"><p>Cross-cutting views: <a href="/af/analytics">Analytics</a> · <a href="/docs">API docs</a> · back to the <a href="/">main dashboard</a></p></div></section>
+{% endblock %}

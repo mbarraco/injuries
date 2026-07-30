@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% import "macros.html" as macros %}{% import "af/_macros.html" as af %}{% block title %}API-Football Absences{% endblock %}{% block heading %}Absences{% endblock %}
+{% block subtitle %}{{ '{:,}'.format(result.total) }} records matching the current filters.{% endblock %}
+{% block content %}{{ af.grain_note(result.grain_note) }}
+<section><form class="filters" method="get"
+  hx-get="/af/absences" hx-trigger="change, submit" hx-target="#af-absence-results" hx-select="#af-absence-results" hx-swap="outerHTML" hx-push-url="true">
+<div class="check"><input type="checkbox" name="confirmed_only" value="true" {{ 'checked' if filters.confirmed_only else '' }}><label>Confirmed only (exclude Questionable)</label></div>
+<div><label>Category</label><select name="category"><option value="">All</option>{% for value in options.categories %}<option value="{{ value }}" {{ 'selected' if filters.category == value else '' }}>{{ value }}</option>{% endfor %}</select></div>
+<div><label>Country</label><select name="country"><option value="">All</option>{% for value in options.countries %}<option value="{{ value }}" {{ 'selected' if filters.country == value else '' }}>{{ value }}</option>{% endfor %}</select></div>
+<div><label>Season</label><select name="season"><option value="">All</option>{% for value in options.seasons %}<option value="{{ value }}" {{ 'selected' if filters.season == value else '' }}>{{ value }}</option>{% endfor %}</select></div>
+<div><label>Sort by</label><select name="sort">{% for value in ['fixture_date', 'player', 'league', 'team'] %}<option value="{{ value }}" {{ 'selected' if filters.sort == value else '' }}>{{ value }}</option>{% endfor %}</select></div>
+<button>Apply</button></form></section>
+<section id="af-absence-results"><div class="table-wrap"><table><thead><tr><th>Player</th><th>Team</th><th>League</th><th>Season</th><th>Type</th><th>Category</th><th>Reason</th><th>Date</th></tr></thead><tbody>
+{% for row in result['items'] %}<tr><td>{{ af.af_entity_link('player', row.player_id, row.player or 'Unknown') }}</td><td>{{ af.af_entity_link('team', row.team_id, row.team) }}</td><td>{{ af.af_entity_link('league', row.league_id, row.league) }}</td><td>{{ row.season }}</td><td>{% if row.type == 'Questionable' %}<span class="pill thin">questionable</span>{% else %}{{ row.type }}{% endif %}</td><td>{{ row.category }}</td><td>{{ row.reason or '—' }}</td><td>{{ row.fixture_date[:10] if row.fixture_date else '—' }}</td></tr>{% endfor %}
+</tbody></table></div>{{ macros.empty_state('No absences match these filters.') if not result['items'] }}
+<div class="pager">{% if result.page > 1 %}{{ af.af_page_link(request, result.page - 1, '← Prev') }}{% endif %}<span>Page {{ result.page }} · {{ '{:,}'.format(result.total) }} records</span>{% if result.page * result.per_page < result.total %}{{ af.af_page_link(request, result.page + 1, 'Next →') }}{% endif %}</div></section>{% endblock %}

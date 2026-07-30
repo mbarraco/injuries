@@ -1,0 +1,83 @@
+{# API-Football-local macros: same job as app/templates/macros.html's
+   entity_link/page_link, but pointed at /af/* routes and a separate
+   database. Kept apart rather than parameterising the shared ones, since
+   /af/{kind}/{id} vs /{kind}/{id} is the only difference and a prefix
+   argument threaded through every call site would be easy to forget. #}
+
+{% macro af_entity_link(kind, id, label) %}
+  {%- if id and label -%}
+    <a href="/af/{{ kind }}/{{ id }}" class="entity-link">{{ label }}</a>
+  {%- elif label -%}
+    <span class="entity-unresolved" title="Not in our data">{{ label }}</span>
+  {%- else -%}
+    <span class="muted">—</span>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro af_page_link(request, page, label, target='#af-absence-results') %}
+  {%- set url = request.url.include_query_params(page=page) -%}
+  <a href="{{ url.path }}?{{ url.query }}"
+     hx-get="{{ url.path }}?{{ url.query }}"
+     hx-target="{{ target }}" hx-select="{{ target }}"
+     hx-swap="outerHTML" hx-push-url="true">{{ label }}</a>
+{% endmacro %}
+
+{# Every page that shows absence counts should carry this once, visibly --
+   the grain caveat is not optional footnote material, it changes what the
+   number in front of it means. #}
+{% macro grain_note(note) %}
+<p class="note">{{ note }}</p>
+{% endmacro %}
+
+{# Transfer type, rendered from the CATEGORY rather than the raw vendor string.
+   The raw value is a three-way mixed field -- it holds a category word, a fee,
+   or the null-marker 'N/A' -- so printing it directly puts "Loan" and "€ 7M" in
+   the same column meaning different kinds of thing. The raw string stays as a
+   title attribute so nothing is hidden. #}
+{% macro transfer_type(row) %}
+  {%- set labels = {'fee': 'Transfer', 'undisclosed': 'Transfer',
+                    'free': 'Free', 'free_agent': 'Free agent',
+                    'loan': 'Loan', 'loan_return': 'Loan ended',
+                    'swap': 'Swap', 'unknown': 'Unrecorded'} -%}
+  <span class="transfer-type transfer-type-{{ row.category or 'unmapped' }}"
+        title="vendor value: {{ row.type or '—' }}">{{
+    labels.get(row.category, row.category or 'Unrecorded') }}</span>
+{% endmacro %}
+
+{# A fee, distinguishing the three states that are NOT the same thing:
+     * a parsed euro amount
+     * an amount the vendor never denominated (shown, but not as euros)
+     * no fee at all -- which for a loan or a free transfer is CORRECT, not
+       missing data, and must not render as a gap that invites a zero. #}
+{% macro transfer_fee(row) %}
+  {%- if row.fee_eur -%}
+    <span class="fee">€{{ '{:,}'.format(row.fee_eur) }}</span>
+  {%- elif row.fee_amount -%}
+    <span class="fee fee-unstated"
+          title="the vendor gave an amount but no currency">{{
+      '{:,}'.format(row.fee_amount) }}<span class="muted">?</span></span>
+  {%- elif row.category in ('free', 'free_agent') -%}
+    <span class="muted" title="no fee — this is a free move, not missing data">free</span>
+  {%- elif row.category == 'undisclosed' -%}
+    <span class="muted" title="a paid move whose fee the vendor did not disclose">undisclosed</span>
+  {%- else -%}
+    <span class="muted">—</span>
+  {%- endif -%}
+{% endmacro %}
+
+{# One row of a transfer table. Both club sides go through af_entity_link,
+   which renders an id-less side as plain text rather than a link -- required
+   here, because the vendor sometimes puts a PLAYER NAME in the club field
+   ("Icardi Mauro"), and a link would 404 into a club page for a person. #}
+{% macro transfer_row(row, show_player=True) %}
+<tr>
+  <td>{{ (row.date or '—')[:10] }}</td>
+  {% if show_player %}
+  <td>{{ af_entity_link('player', row.player_id, row.player_name) }}</td>
+  {% endif %}
+  <td>{{ af_entity_link('team', row.from_team_id, row.from_team_name) }}</td>
+  <td>{{ af_entity_link('team', row.to_team_id, row.to_team_name) }}</td>
+  <td>{{ transfer_type(row) }}</td>
+  <td class="num">{{ transfer_fee(row) }}</td>
+</tr>
+{% endmacro %}
